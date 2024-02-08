@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Container
+from user.models import User
 
 from datetime import datetime
 
@@ -8,20 +9,21 @@ from datetime import datetime
 #         model = Container
 #         fields = ['name', 'image', 'published_date']
 
-class ContainerCreateSerializer(serializers.ModelSerializer):
+class ContainerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Container
         fields = '__all__'
-        # fields = ['name', 'image', 'published_date']
-    
-    
-    def validate(self, attrs):
-        # print('validate', attrs)
-        
-        attrs['file'] = attrs['name'] + '-' + attrs['image']
 
-        # Check if published_date is not provided, then set it to the current date
-        # if not attrs.get('published_date'):
-        #     attrs['published_date'] = datetime.now()
+class ContainerGetSerializer(serializers.ModelSerializer):
 
-        return attrs
+    image_name = serializers.SerializerMethodField()
+    node_ip = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Container
+        fields = ['container_id', 'pod_name', 'image_name', 'node_ip', 'port', 'gputype', 'num_gpu', 'duration', 'status', 'create_time']
+    
+    def get_image_name(self, obj):
+        return obj.image.name + ':' + obj.image.tag if obj.image else None
+    def get_node_ip(self, obj):
+        return obj.node.node_ip  if obj.node.node_ip else None

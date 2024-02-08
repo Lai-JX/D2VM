@@ -121,8 +121,8 @@ def save_image_serve(server_class=HTTPServer, handler_class=SimpleHTTPRequestHan
 
 if __name__ == '__main__':
     ssh = 'ssh jxlai@192.168.1.107'
-    image_pre = '10.249.46.189:5000/ubuntu-ssh:v1'
-    container = 'dsun'
+    image_pre = '10.249.46.189:5000/geosx/ubuntu20.04-gcc9:256-139'
+    container = 'lyli'
     print(manipulate_string(image_pre, container))
     # commit_image(ssh, image_pre, container)
     # save_image_serve()

@@ -166,6 +166,7 @@ USE_TZ = False
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATICFILES_DIRS = [ os.path.join(BASE_DIR, 'static'), os.path.join(BASE_DIR, 'pod_config'), ]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
@@ -183,6 +184,7 @@ REST_FRAMEWORK = {
 # 配置文件存储路径
 POD_CONFIG = os.path.join(BASE_DIR, 'pod_config/')
 MEDIA_ROOT = POD_CONFIG
+MEDIA_URL = '/pod_config/'
 
 # 配置密码哈希算法
 AUTH_PASSWORD_HASHERS = [
@@ -200,4 +202,4 @@ NFS_IP = '10.249.46.117'
 SAVE_IMAGE_IP = '10.249.46.117'
 SAVE_IMAGE_PORT = 32325
 
-REGISTERY_PATH = '10.249.46.189:5000/'
+REGISTERY_PATH = '10.249.46.189:5000'

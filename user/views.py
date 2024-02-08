@@ -5,6 +5,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django.contrib.auth import authenticate, login, logout
 from rest_framework import serializers
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
 
 # Create your views here.
 from rest_framework import viewsets
@@ -58,6 +60,12 @@ class UserLoginView(generics.GenericAPIView):
 
 
 class UserLogoutView(generics.GenericAPIView):
+
+    # 采用token验证
+    authentication_classes = [TokenAuthentication]
+    # 使用 IsAuthenticated 权限类，确保用户已登录
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
         user =  request.user
 
