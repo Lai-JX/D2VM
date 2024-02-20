@@ -11,7 +11,7 @@ from .models import Image
 from container.models import Container
 from user.models import User
 from django.conf import settings
-from .manage_image import commit_image, push_image, sync_image_to_database
+from .manage_image import add_image, commit_image, delete_image, delete_registery_image, push_image, sync_image_to_database
 
 
 class ImageViewSet(viewsets.GenericViewSet):
@@ -29,10 +29,17 @@ class ImageViewSet(viewsets.GenericViewSet):
         except (TypeError, KeyError):
             return {}
     
-    # 提交已有镜像
+    # 添加镜像
     def create(self, request, *args, **kwargs):
-
-        serializer = self.get_serializer(data=request.data)
+        image = request.data
+        image['source'] = 'public'
+        image['is_push'] = True
+        print(image)
+        serializer = self.get_serializer(data=image)
+        ssh = 'ssh jxlai@' + settings.REGISTERY_IP
+        res = add_image(ssh, settings.REGISTERY_PATH, image['name']+":"+image['tag'])
+        if res == 'image pull fail' or res == 'push fail':
+            return Response({'status': status.HTTP_500_INTERNAL_SERVER_ERROR , 'message': res})
 
         try:
             serializer.is_valid(raise_exception=True)
@@ -71,10 +78,22 @@ class ImageViewSet(viewsets.GenericViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
     
-    # def retrieve(self, request, *args, **kwargs):
-    #     instance = self.get_object()
-    #     serializer = self.get_serializer(instance)
-    #     return Response(serializer.data)
+    def delete(self, request, *args, **kwargs):
+        image_id = self.request.query_params.get('image_id')
+        delete_all = bool(self.request.query_params.get('delete_all'))
+
+        image = Image.objects.get(image_id=image_id)
+        ssh = 'ssh jxlai@' + image.node.node_ip
+        if delete_all:
+            flag1, res1 = delete_image(ssh, settings.REGISTERY_PATH, image)
+            flag2, res2 = delete_registery_image(settings.REGISTERY_PATH, image.name, image.tag)
+            if flag1 and flag2:
+                image.delete()
+            return Response({'msg':res1+'\n'+res2})
+        else:
+            flag, res = delete_image(ssh, settings.REGISTERY_PATH, image)
+            return Response({'msg':res})
+
 
 # 用于将容器保存为镜像
 class ImageSaveView(generics.GenericAPIView):
@@ -100,7 +119,7 @@ class ImageSaveView(generics.GenericAPIView):
         # 保存容器
         # ssh到别的机器
         ssh = 'ssh jxlai@' + container.node.node_ip
-        res = commit_image(container, settings.REGISTERY_PATH)
+        res = commit_image(ssh, container, settings.REGISTERY_PATH)
         return Response({'msg':res})
     
 # 用于将镜像上传到仓库
@@ -114,10 +133,15 @@ class ImagePushView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        # 获取容器
-        container_id = self.request.query_params.get('container_id')
-        push_image()
-        
+        # 获取镜像
+        image_id = self.request.query_params.get('image_id')
+        image = Image.objects.get(image_id=image_id)
+        ssh = 'ssh jxlai@' + image.node.node_ip
+        res = push_image(ssh, settings.REGISTERY_PATH, str(image))
+        if res != 'commit fail':
+            image.is_push = True
+            image.save()
+        return Response({'msg':res})
         
     
 # 管理者专用(Deprecated)

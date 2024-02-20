@@ -10,7 +10,7 @@ urlpatterns = [
     path('sync/', ImageSyncView.as_view(), name='image_sync'),
     path('save/', ImageSaveView.as_view(), name='image_save'),
     path('push/', ImagePushView.as_view(), name='image_push'),
-    path('', ImageViewSet.as_view({'get': 'list','post': 'create',}), name='image'),
+    path('', ImageViewSet.as_view({'get': 'list', 'post': 'create', 'delete': 'delete',}), name='image'),
 ]
 # urlpatterns = [
 #     path('register/', UserCreateView.as_view(), name='register'),

@@ -7,7 +7,7 @@ from os.path import abspath, join, dirname
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 from django.conf import settings
-# from .models import Image
+from .models import Image
 
 # from utils import *
 import requests
@@ -46,30 +46,6 @@ def sync_image_to_database(registry_url):
         for tag in tags:
             # print(image, tag, Image.objects.filter(name=image, tag=tag).exists())
             print(image, tag)
-
-# 删除镜像库镜像
-def delete_registery_image(registry_url, image_name, tag):
-    registry_url = 'http://' + registry_url
-    manifest_url = f"{registry_url}/v2/{image_name}/manifests/{tag}"
-    headers = {"Accept": "application/vnd.docker.distribution.manifest.v2+json"}
-    
-    # 获取哈希值
-    response = requests.get(manifest_url, headers=headers)
-    
-    if response.status_code == 200:
-        digest = response.headers.get('Docker-Content-Digest')
-        
-        # 构造删除请求
-        delete_url = f"{registry_url}/v2/{image_name}/manifests/{digest}"
-        print(delete_url)
-        delete_response = requests.delete(delete_url)
-
-        if delete_response.status_code == 202:
-            print(f"Image {image_name}:{tag} deleted successfully.")
-        else:
-            print(f"Failed to delete image {image_name}:{tag}. Status Code: {delete_response.status_code}")
-    else:
-        print(f"Failed to get manifest for {image_name}:{tag}. Status Code: {response.status_code}")
 
 
 def get_image_created_time(registry_url, image_name, tag):
@@ -128,19 +104,20 @@ def manipulate_string(input_string, username):
     #     manipulated_string = username + manipulated_string
 
     manipulated_string = manipulated_string.split(':')
-    print(manipulated_string)
+    # print(manipulated_string)
     manipulated_string[-1] = add_prefix(manipulated_string[-1], username)
     manipulated_string = ":".join(manipulated_string)
     return manipulated_string
 
+# 提交镜像
 def commit_image(ssh, container, register_path):
     # 1. 更新image版本
     image_pre = register_path + '/' + str(container.image)
     
     username = container.user.username
-    image = manipulate_string(image_pre, username)
+    image_name = manipulate_string(image_pre, username)
     # 2. 判断镜像名是否已经存在
-    command_to_run = ssh + ' docker images -q ' + image
+    command_to_run = ssh + ' docker images -q ' + image_name
     print('run:', command_to_run)
     # 调用终端命令
     output = run_command(command_to_run)
@@ -148,73 +125,112 @@ def commit_image(ssh, container, register_path):
         return 'image already exist!'
     
     # 3. 提交镜像
-    command_to_run = '{} docker commit $({} docker ps --filter ancestor={} --format "{{{{.Names}}}}" | grep {}) {}'.format(ssh, ssh, image_pre, username, image)
+    command_to_run = '{} docker commit $({} docker ps --filter ancestor={} --format "{{{{.Names}}}}" | grep {}) {}'.format(ssh, ssh, image_pre, username, image_name)
     print('run:', command_to_run)
     output = run_command(command_to_run)
     if output is not None:
         print("Command output:")
         print(output)
-        container.commit_image_name = image[len(register_path)+1:]
+        container.commit_image_name = image_name[len(register_path)+1:]
         container.save()
+    else:
+        return 'commit fail'
+    # 4. 保存到数据库
+    image_name = container.commit_image_name.split(":")
+    name = ":".join(image_name[:-1])
+    tag = image_name[-1]
+    image = Image(name=name, tag=tag, source=username, node=container.node)
+    image.save()
     return output
 
+# 推送镜像
 def push_image(ssh, register_path, image_name):
-    pass
-
+    image_name = register_path + '/' + image_name
+    command_to_run = '{} docker push {}'.format(ssh, image_name)
+    output = run_command(command_to_run)
+    if output is not None:
+        print("Command output:")
+        print(output)
+        return output
+    else:
+        return 'push fail'
     
-def delete_image(ssh, image):
-    # TODO:确认镜像是否存在
+# 添加镜像
+def add_image(ssh, register_path, image_name):
+    # 1. 拉取镜像
+    command_to_run = '{} docker pull {}'.format(ssh, image_name)
+    print('run:',command_to_run)
+    output = run_command(command_to_run)
+    print(output)
+    if output is None:
+        return 'image pull fail'
+    # 2. 打tag
+    command_to_run = '{} docker tag {} {}'.format(ssh, image_name, register_path + '/' + image_name)
+    print('run:',command_to_run)
+    output = run_command(command_to_run)
+    print(output)
+    if output is None:
+        return 'image tag fail'
+    # 3. 提交镜像
+    return push_image(ssh, register_path, image_name)
+    
 
+
+ # 删除机器上的镜像   
+def delete_image(ssh, register_path, image):
+    # TODO:确认镜像是否存在
+    image_name = register_path + '/' + str(image)
     # 1. 查看镜像是否被占用
-    command_to_run = '{} docker ps --filter ancestor={} --format "{{{{.Names}}}}"'.format(ssh, image)
+    command_to_run = '{} docker ps --filter ancestor={} --format "{{{{.Names}}}}"'.format(ssh, image_name)
+    print(command_to_run)
     output = run_command(command_to_run)
     if output == None:
-        return False
-    
+        return False, 'search image fail'
     if len(output) > 0:
         print("The image is in use!")
         print(output)
-        return False
+        return False, 'The image is in use!'
     # 2. 删除镜像
-    else:
-        command_to_run = '{} docker rmi {}>'.format(ssh, image)
-        output = run_command(command_to_run)
-        return True
+    command_to_run = '{} docker rmi {}'.format(ssh, image_name)
+    print(command_to_run)
+    output = run_command(command_to_run)
+    if output == None:
+        return False, 'delete image fail'
+    if len(output) > 0:
+        print(output, image.note is None)
+        # if image.note is None # TODO
+        image.note = ' delete image on node ' + str(image.node)
+        image.node = None
+        image.save()
+        return True, output
 
+# 删除镜像库镜像
+def delete_registery_image(registry_url, image_name, tag):
+    registry_url = 'http://' + registry_url
+    manifest_url = f"{registry_url}/v2/{image_name}/manifests/{tag}"
+    headers = {"Accept": "application/vnd.docker.distribution.manifest.v2+json"}
     
-
-
-class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
-    def do_GET(self):               # 保存镜像
-        parsed_path = urlparse(self.path)
-        query_params = parse_qs(parsed_path.query)
-        # print(query_params)
-
-        # 获取参数
-        if 'container' in query_params and 'image' in query_params:
-            container = query_params['container'][0]
-            image_pre = query_params['image'][0]
-
-            # TODO
-            # 查询此容器在哪个node上运行，这里先写死
-            ssh = 'ssh jxlai@192.168.1.107'
-            
-            output = commit_image(ssh, image_pre, container)
-            
-            if output:
-                self.send_response(200)
-                # self.send_header('Content-type', 'text/html')
-                self.end_headers()
-        else:
-            print('parameters errors')
-            self.wfile.write(b"not enough parameters")
+    # 获取哈希值
+    response = requests.get(manifest_url, headers=headers)
+    
+    if response.status_code == 200:
+        digest = response.headers.get('Docker-Content-Digest')
         
+        # 构造删除请求
+        delete_url = f"{registry_url}/v2/{image_name}/manifests/{digest}"
+        print(delete_url)
+        delete_response = requests.delete(delete_url)
 
-def save_image_serve(server_class=HTTPServer, handler_class=SimpleHTTPRequestHandler, port=8000):
-    server_address = ('', port)
-    httpd = server_class(server_address, handler_class)
-    print(f"Starting server on port {port}...")
-    httpd.serve_forever()
+        if delete_response.status_code == 202:
+            print(f"Image {image_name}:{tag} deleted successfully.")
+            return True, f"Image {image_name}:{tag} deleted successfully."
+        else:
+            print(f"Failed to delete image {image_name}:{tag}. Status Code: {delete_response.status_code}")
+            return False, f"Failed to delete image {image_name}:{tag}. Status Code: {delete_response.status_code}"
+    else:
+        print(f"Failed to get manifest for {image_name}:{tag}. Status Code: {response.status_code}")
+        return False, f"Failed to get manifest for {image_name}:{tag}. Status Code: {response.status_code}"
+    
 
 if __name__ == '__main__':
     # ssh = 'ssh jxlai@192.168.1.107'

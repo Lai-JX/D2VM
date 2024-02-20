@@ -6,8 +6,36 @@ from os.path import abspath, join, dirname
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
-
+import requests
 # from utils import *
+
+# 从私有镜像库获取所有镜像
+def get_all_images_and_tags(registry_url):
+    registry_url = 'http://' + registry_url
+    catalog_url = f"{registry_url}/v2/_catalog"
+    response = requests.get(catalog_url)
+
+    image_tags_dict = {}
+    if response.status_code == 200:
+        catalog_data = response.json()
+        image_list = catalog_data.get('repositories', [])
+
+        for image in image_list:
+            tags_url = f"{registry_url}/v2/{image}/tags/list"
+            tags_response = requests.get(tags_url)
+
+            if tags_response.status_code == 200:
+                tags_data = tags_response.json()
+                tags = tags_data.get('tags', [])
+                if tags is not None:
+                    image_tags_dict[image] = tags
+                    # print(f"Image: {image}, Tags: {', '.join(tags)}")
+            else:
+                print(f"Failed to get tags for image {image}. Status Code: {tags_response.status_code}")
+
+    else:
+        print(f"Failed to get catalog. Status Code: {response.status_code}")
+    return image_tags_dict
 
 # 执行终端命令
 def run_command(command):
@@ -119,6 +147,30 @@ def save_image_serve(server_class=HTTPServer, handler_class=SimpleHTTPRequestHan
     print(f"Starting server on port {port}...")
     httpd.serve_forever()
 
+# 删除镜像库镜像
+def delete_registery_image(registry_url, image_name, tag):
+    registry_url = 'http://' + registry_url
+    manifest_url = f"{registry_url}/v2/{image_name}/manifests/{tag}"
+    headers = {"Accept": "application/vnd.docker.distribution.manifest.v2+json"}
+    
+    # 获取哈希值
+    response = requests.get(manifest_url, headers=headers)
+    
+    if response.status_code == 200:
+        digest = response.headers.get('Docker-Content-Digest')
+        
+        # 构造删除请求
+        delete_url = f"{registry_url}/v2/{image_name}/manifests/{digest}"
+        print(delete_url)
+        delete_response = requests.delete(delete_url)
+
+        if delete_response.status_code == 202:
+            print(f"Image {image_name}:{tag} deleted successfully.")
+        else:
+            print(f"Failed to delete image {image_name}:{tag}. Status Code: {delete_response.status_code}")
+    else:
+        print(f"Failed to get manifest for {image_name}:{tag}. Status Code: {response.status_code}")
+
 if __name__ == '__main__':
     ssh = 'ssh jxlai@192.168.1.107'
     image_pre = '10.249.46.189:5000/geosx/ubuntu20.04-gcc9:256-139'
@@ -127,3 +179,6 @@ if __name__ == '__main__':
     # commit_image(ssh, image_pre, container)
     # save_image_serve()
     # delete_image('ssh jxlai@192.168.1.107', 'ubuntu-ssh:v1')
+    images = get_all_images_and_tags('10.249.46.189:5000')
+    print(images)
+    # delete_registery_image('10.249.46.189:5000','ubuntu-ssh','ljx-v2')

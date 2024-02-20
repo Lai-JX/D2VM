@@ -120,7 +120,7 @@ class ContainerView(viewsets.GenericViewSet):
                 return Response({'status': status.HTTP_403_FORBIDDEN , 'message': error_message})
             container.status = get_pod_status(container.pod_name)
             container.save()
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            return Response({'status': status.HTTP_204_NO_CONTENT})
         except Exception as e:
             # 捕获并处理保存失败的异常
             error_message = str(e)
