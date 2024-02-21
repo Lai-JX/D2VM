@@ -33,6 +33,10 @@ spec:
         nfs:
           server: 192.168.1.104
           path: /home/VM/share
+      - name: cache-volume
+        emptyDir:
+          medium: Memory
+          sizeLimit: 128M      # 16Gi
       terminationGracePeriodSeconds: 120 # 钩子函数宽限期 20min
       dnsPolicy: Default                # 域名解析策略和主机相同，防止不能访问网址
       restartPolicy: OnFailure                    # OnFailure Never
@@ -48,6 +52,8 @@ spec:
         - mountPath: /share
           name: share
           readOnly: true
+        - mountPath: /dev/shm
+          name: cache-volume
         resources:
           limits:
             nvidia.com/gpu: 2 # requesting 1 GPU

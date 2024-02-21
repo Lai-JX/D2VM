@@ -25,7 +25,7 @@ class Container(models.Model):
     port = models.IntegerField(null=True)
     duration = models.IntegerField(default=3600)
     memory = models.CharField(max_length=10, default='10Gi')
-    capability = models.CharField(max_length=255, blank=True, null=True)
+    # capability = models.CharField(max_length=255, blank=True, null=True)
     is_VM = models.BooleanField(default=True)
     use_master = models.BooleanField(default=False)
     test = models.BooleanField(default=False)
@@ -35,6 +35,9 @@ class Container(models.Model):
     status = models.CharField(max_length=25, blank=True, null=True)
     
     commit_image_name = models.CharField(max_length=255, blank=True, null=True)
+
+    capabilities = models.JSONField(max_length=255, verbose_name='capabilities', null=True)
+    shm = models.CharField(max_length=10, default='64M')
     # config_file_path = models.CharField(max_length=255, null=True)
 
     def __str__(self):

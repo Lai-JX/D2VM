@@ -91,10 +91,25 @@
       </div>
       
       <div class="form-group">
-        <label for="capability">Additional capability:</label>
-        <input type="text" v-model="containerData.capability">
+        <!-- <label for="capability">Additional capability:</label>
+        <input type="text" v-model="containerData.capability"> -->
+        <div>
+          <label>capability</label>
+          <el-select v-model="selectedCapability" multiple placeholder="select additional capability">
+            <el-option
+              v-for="capability in capabilities"
+              :key="capability"
+              :value="capability"
+            ></el-option>
+          </el-select>
+        </div>
       </div>
-      
+
+      <div class="form-group">
+        <label for="shm">share memory:</label>
+        <input type="test" v-model="containerData.shm">
+      </div>
+
       <div class="form-group">
         <label for="is_VM">Deploy VM(or Task):</label>
         <input type="checkbox" v-model="containerData.is_VM">
@@ -231,11 +246,14 @@ export default {
         // port: null,
         duration: 3600,
         memory: '1Gi',
-        capability: null,
+        capabilities: null,
         is_VM: true,
         use_master: false,
-        gputype: ''
+        gputype: '',
+        shm: '64M'
       },
+      capabilities: ['CAP_SYS_ADMIN', 'NET_BIND_SERVICE'],
+      selectedCapability: null,
       imageData: {
         name: '',
         tag: '',
@@ -299,6 +317,7 @@ export default {
     onCreateContainer() {
       console.log("onCreateContainer!");
       this.containerData.name = username
+      this.containerData.capabilities = this.selectedCapability
       this.containerData = Object.fromEntries(
         Object.entries(this.containerData).filter(([, value]) => value !== null && value !== "")
       );

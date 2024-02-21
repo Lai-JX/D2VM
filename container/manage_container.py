@@ -38,6 +38,10 @@ def config_job(config):
     container.spec.volumes[0].nfs.path = '/home/VM/' + config['name']
     container.spec.volumes[0].nfs.server = settings.NFS_IP
     container.spec.volumes[1].nfs.server = settings.NFS_IP
+    if 'shm' in config:
+        container.spec.volumes[2].emptyDir.sizeLimit = config['shm']
+    else:
+        del container.spec.volumes[2]
     # # 在主机上创建存储卷（默认是在同主机,需要确保当前用户可以编辑该目录）
     os.system('mkdir {}'.format(container.spec.volumes[0].nfs.path))
 
@@ -62,6 +66,8 @@ def config_job(config):
     # 挂载
     container.spec.containers[0].volumeMounts[0].mountPath = config['path']
     container.spec.containers[0].volumeMounts[0].name = container.spec.volumes[0]['name'] 
+    if 'shm' not in config:
+        del container.spec.containers[0].volumeMounts[2]
 
     # 资源
     container.spec.containers[0].resources.requests['nvidia.com/gpu'] = config['num_gpu']
@@ -78,12 +84,16 @@ def config_job(config):
     container.spec.containers[0].resources.requests['memory'] = config['memory']
     container.spec.containers[0].resources.limits = copy.deepcopy(container.spec.containers[0].resources.requests)
 
+    # 特权
+    if 'capabilities' in config: 
+        container.spec.containers[0].securityContext.capabilities.add = config['capabilities']
+
     # 是否在master上运行
     if config['use_master']:
         container.spec.tolerations.append({'key':'node-role.kubernetes.io/master', 'operator': 'Exists', 'effect':'NoSchedule'})
 
     # 设置service
-    service.metadata.name = config['name'] + '-ssh'
+    service.metadata.name = 'ssh-' + config['name']
     service.spec.selector.user = config['name']
     service.spec.ports[0].nodePort=config['port'] if 'port' in config else None
 

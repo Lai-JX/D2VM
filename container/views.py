@@ -30,7 +30,7 @@ class ContainerView(viewsets.GenericViewSet):
     def create(self, request, *args, **kwargs):
         
         config = copy.deepcopy(request.data)
-
+        print(config)
         # 1. 根据镜像id获取实际的镜像
         try:
             image = Image.objects.get(image_id=config['image_id'])
