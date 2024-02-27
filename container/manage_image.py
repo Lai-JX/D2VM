@@ -29,7 +29,7 @@ def get_all_images_and_tags(registry_url):
                 tags = tags_data.get('tags', [])
                 if tags is not None:
                     image_tags_dict[image] = tags
-                    # print(f"Image: {image}, Tags: {', '.join(tags)}")
+                    print(f"Image: {image}, Tags: {', '.join(tags)}")
             else:
                 print(f"Failed to get tags for image {image}. Status Code: {tags_response.status_code}")
 

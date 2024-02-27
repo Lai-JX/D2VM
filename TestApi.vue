@@ -87,6 +87,7 @@
           <option value="">--</option>
           <option value="4090">NVIDIA GeForce RTX 4090</option>
           <option value="a6000">NVIDIA RTX A6000</option>
+          <option value="h800">NVIDIA H800 PCIe</option>
         </select>
       </div>
       

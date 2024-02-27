@@ -37,7 +37,7 @@ def config_job(config):
     # container.spec.volumes[0].hostPath.path = '/home/VM/' + config['name']
     container.spec.volumes[0].nfs.path = '/home/VM/' + config['name']
     container.spec.volumes[0].nfs.server = settings.NFS_IP
-    container.spec.volumes[1].nfs.server = settings.NFS_IP
+    container.spec.volumes[1].nfs.server = settings.NFS_IP_SHARE
     if 'shm' in config:
         container.spec.volumes[2].emptyDir.sizeLimit = config['shm']
     else:
@@ -122,6 +122,7 @@ def start_job(path, container_name, res):
     # 获取pod_name
     pod_res = os.popen("kubectl get pod -owide | grep {}".format(container_name))
     pod_res = pod_res.read().split('\n')
+    print(pod_res)
     
     if len(pod_res)==1:
         # TODO 一般是资源不够或者是无法调度
@@ -172,13 +173,14 @@ def get_pod_status(pod_name):
     return status
 
 def get_pod_status_by_username(username):
-    res = os.popen("kubectl get pod | grep {}".format(username))
+    res = os.popen("kubectl get pod -owide | grep {}".format(username))
     res = res.read().split('\n')
-    # print(res)
     pod_status = {}
+    nodes = {}
     for row in res[:-1]:
         row = row.split()
         pod_status[row[0]] = row[2]
+        nodes[row[0]] = row[6]
     # # print(res)
     # if len(res)==1:
     #     # pod 不存在
@@ -186,8 +188,7 @@ def get_pod_status_by_username(username):
     # else:
     #     status = res[0].split()[2]
     # print(pod_status)
-    return pod_status
-
+    return pod_status, nodes
 def delete_job(config_file_path):
     try:
         subprocess.run('kubectl delete -f {}'.format(config_file_path), shell=True, check=True)

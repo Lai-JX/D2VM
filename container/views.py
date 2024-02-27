@@ -72,14 +72,16 @@ class ContainerView(viewsets.GenericViewSet):
             )
             config['file'] = uploaded_file
 
-        
+        try:
+            node = Node.objects.get(node_name=res['node_name'])
+            config['node'] = node.pk
+        except Node.DoesNotExist:       # 容器为pending
+            node = None
         # 3. 判断数据是否有效并保存（是否符合序列器要求，会调用validate）
         try:
             print(res['node_name'])
-            node = Node.objects.get(node_name=res['node_name'])
             user = User.objects.get(username=config['name'])
             
-            config['node'] = node.pk
             config['user'] = user.pk
             config['image'] = image.pk
             del config['backoffLimit'], config['name']
@@ -107,7 +109,7 @@ class ContainerView(viewsets.GenericViewSet):
             print(error_message)
             return Response({'status': status.HTTP_403_FORBIDDEN , 'message': error_message})
 
-        return Response({'status': status.HTTP_201_CREATED, 'message': 'success', 'port': res['port'], 'IP': node.node_ip})
+        return Response({'status': status.HTTP_201_CREATED, 'message': 'success', 'port': res['port'], 'IP': None if node is None else node.node_ip})
 
     def delete(self, request, *args, **kwargs):
         container_id = self.request.query_params.get('container_id')
@@ -149,11 +151,17 @@ class ContainerGetView(generics.GenericAPIView):
         #     pod_name__in=[item['pod_name'] for item in latest_pods],
         #     published_date__in=[item['published_date'] for item in latest_pods]
         # )
-        pod_status = get_pod_status_by_username(request.user.username)
-        print(pod_status)
+        pod_status, nodes = get_pod_status_by_username(request.user.username)
+        print(pod_status,nodes)
+        # 更新pod状态和所属节点
         for pod in queryset:
             if pod.pod_name in pod_status:
                 pod.status = pod_status[pod.pod_name]
+                try:
+                    node = Node.objects.get(node_name=nodes[pod.pod_name])
+                    pod.node = node
+                except Node.DoesNotExist:       # 容器为pending
+                    pod.node = None
             else:
                 pod.status = 'Not exist or finished'
             pod.save()
