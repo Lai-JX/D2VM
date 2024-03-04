@@ -13,6 +13,22 @@ from user.models import User
 from django.conf import settings
 from .manage_image import add_image, commit_image, delete_image, delete_registery_image, push_image, sync_image_to_database
 
+import socket
+
+
+def get_host_ip():
+    """
+    查询本机ip地址
+    :return: ip
+    """
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('8.8.8.8', 80))
+        ip = s.getsockname()[0]
+    finally:
+        s.close()
+
+    return ip
 
 class ImageViewSet(viewsets.GenericViewSet):
     serializer_class = ImageSerializer
@@ -36,10 +52,13 @@ class ImageViewSet(viewsets.GenericViewSet):
         image['is_push'] = True
         print(image)
         serializer = self.get_serializer(data=image)
-        ssh = 'ssh jxlai@' + settings.REGISTERY_IP
+        if settings.DOCKER_PULL_PUSH_IP == get_host_ip():
+            ssh = ''
+        else:
+            ssh = 'ssh jxlai@' + settings.DOCKER_PULL_PUSH_IP
         res = add_image(ssh, settings.REGISTERY_PATH, image['name']+":"+image['tag'])
         if res == 'image pull fail' or res == 'push fail':
-            return Response({'status': status.HTTP_500_INTERNAL_SERVER_ERROR , 'message': res})
+            return Response({'message': res}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         try:
             serializer.is_valid(raise_exception=True)
@@ -48,7 +67,7 @@ class ImageViewSet(viewsets.GenericViewSet):
             # 捕获并处理保存失败的异常
             error_message = str(e)
             print(error_message)
-            return Response({'status': status.HTTP_403_FORBIDDEN , 'message': error_message})
+            return Response({'message': error_message}, status=status.HTTP_403_FORBIDDEN)
         headers = self.get_success_headers(serializer.data)
 
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
@@ -56,7 +75,7 @@ class ImageViewSet(viewsets.GenericViewSet):
     # 获取所有镜像
     def list(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
-            return Response({'status': status.HTTP_401_UNAUTHORIZED, 'message': 'Please log in first'})
+            return Response({'message': 'Please log in first'}, status=status.HTTP_401_UNAUTHORIZED)
         
         # registry_url = settings.REGISTERY_PATH
 
@@ -80,19 +99,39 @@ class ImageViewSet(viewsets.GenericViewSet):
     
     def delete(self, request, *args, **kwargs):
         image_id = self.request.query_params.get('image_id')
-        delete_all = bool(self.request.query_params.get('delete_all'))
+        delete_opt = int(self.request.query_params.get('delete_opt'))
+        print(image_id,  delete_opt)
 
         image = Image.objects.get(image_id=image_id)
-        ssh = 'ssh jxlai@' + image.node.node_ip
-        if delete_all:
-            flag1, res1 = delete_image(ssh, settings.REGISTERY_PATH, image)
-            flag2, res2 = delete_registery_image(settings.REGISTERY_PATH, image.name, image.tag)
-            if flag1 and flag2:
-                image.delete()
-            return Response({'msg':res1+'\n'+res2})
+        if image.node == None:          # 删除过本地后，image.node就是None
+            ssh = 'ssh jxlai@' + settings.DOCKER_PULL_PUSH_IP
         else:
+            ssh = 'ssh jxlai@' + image.node.node_ip
+        if delete_opt == 2:                 # delete all
+            flag1, res1 = delete_registery_image(settings.REGISTERY_PATH, image)
+            flag2, res2 = delete_image(ssh, settings.REGISTERY_PATH, image)
+            if flag1 and flag2:
+                # image.delete()
+                return Response({'message':res1+'\n'+res2}, status=status.HTTP_204_NO_CONTENT)
+            else:
+                return Response({'message':res1+'\n'+res2}, status=status.HTTP_403_FORBIDDEN)
+        elif delete_opt == 0 and image.node is not None:               # delete local
+            print("delete local")
             flag, res = delete_image(ssh, settings.REGISTERY_PATH, image)
-            return Response({'msg':res})
+            if flag:
+                return Response({'message':res}, status=status.HTTP_204_NO_CONTENT)
+            else:
+                return Response({'message':res}, status=status.HTTP_403_FORBIDDEN)
+        elif delete_opt == 1:               # delete image in registry
+            flag, res = delete_registery_image(settings.REGISTERY_PATH, image)
+            if flag:
+                return Response({'message':res}, status=status.HTTP_204_NO_CONTENT)
+            else:
+                return Response({'message':res}, status=status.HTTP_403_FORBIDDEN)
+        else:
+            print("forbidden")
+            return Response({'message':'error parameter'}, status=status.HTTP_403_FORBIDDEN)
+            
 
 
 # 用于将容器保存为镜像
@@ -119,8 +158,12 @@ class ImageSaveView(generics.GenericAPIView):
         # 保存容器
         # ssh到别的机器
         ssh = 'ssh jxlai@' + container.node.node_ip
-        res = commit_image(ssh, container, settings.REGISTERY_PATH)
-        return Response({'msg':res})
+        res, flag = commit_image(ssh, container, settings.REGISTERY_PATH)
+        if flag:
+            return Response({'message':res}, status=status.HTTP_200_OK)
+        else:
+            return Response({'message':res}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     
 # 用于将镜像上传到仓库
 class ImagePushView(generics.GenericAPIView):
@@ -138,10 +181,13 @@ class ImagePushView(generics.GenericAPIView):
         image = Image.objects.get(image_id=image_id)
         ssh = 'ssh jxlai@' + image.node.node_ip
         res = push_image(ssh, settings.REGISTERY_PATH, str(image))
-        if res != 'commit fail':
+        print(res)
+        if res != 'push fail':
             image.is_push = True
             image.save()
-        return Response({'msg':res})
+            return Response({'message':res}, status=status.HTTP_200_OK)
+        else:
+            return Response({'message':res}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
     
 # 管理者专用(Deprecated)

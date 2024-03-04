@@ -205,8 +205,8 @@
       <input type="text" v-model="delete_image_id">
 
 
-      <label for="delete_image_all">delete_image_all(delet the image in registry):</label>
-      <input type="checkbox" v-model="delete_image_all">
+      <label for="delete_opt">delete_opt(0:delete_local; 1:delete_registry; 2:delete_all):</label>
+      <input type="text" v-model="delete_opt">
 
     <button @click="onDeleteImage">Delete</button>
   </div>
@@ -267,7 +267,7 @@ export default {
       save_container_id: "",
       push_image_id: "",
       delete_image_id: "",
-      delete_image_all: false,
+      delete_opt: "",
     };
   },
   methods: {
@@ -445,14 +445,14 @@ export default {
     },
 
     onDeleteImage() {
-      console.log("onDeleteImage!", this.delete_image_id, this.delete_image_all);
+      console.log("onDeleteImage!", this.delete_image_id, this.delete_opt);
       axios.delete('http://10.249.46.117:32325/image/', {
         headers: {
           Authorization: `Token ${globalToken}`,
         },
         params: {
           image_id: this.delete_image_id,
-          delete_all: this.delete_image_all ? 1 : '',
+          delete_opt: this.delete_opt,
         },
       })
       .then((res) => {

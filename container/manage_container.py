@@ -7,6 +7,7 @@ import os
 import time
 from datetime import datetime
 from django.conf import settings
+import uuid
 
 def config_job(config):
     with open('pod_config/template/template_job.yaml', 'r', encoding='utf-8') as f:
@@ -93,7 +94,7 @@ def config_job(config):
         container.spec.tolerations.append({'key':'node-role.kubernetes.io/master', 'operator': 'Exists', 'effect':'NoSchedule'})
 
     # 设置service
-    service.metadata.name = 'ssh-' + config['name']
+    service.metadata.name = 'job-ssh-' + config['name']
     service.spec.selector.user = config['name']
     service.spec.ports[0].nodePort=config['port'] if 'port' in config else None
 
@@ -120,7 +121,7 @@ def start_job(path, container_name, res):
     print(path, container_name)
     time.sleep(5)
     # 获取pod_name
-    pod_res = os.popen("kubectl get pod -owide | grep {}".format(container_name))
+    pod_res = os.popen("kubectl get pod -owide | grep {}".format('job-'+container_name+'-'))
     pod_res = pod_res.read().split('\n')
     print(pod_res)
     
@@ -137,7 +138,7 @@ def start_job(path, container_name, res):
             status = row[2]
 
     # 获取svc_name
-    svc_res = os.popen("kubectl get svc | grep {}".format(container_name))
+    svc_res = os.popen("kubectl get svc | grep {}".format("job-ssh-"+container_name))
     svc_res = svc_res.read().split()
     # print(svc_res[5].split('/')[0].split(':')[1])
     if len(svc_res) > 0:
@@ -173,7 +174,7 @@ def get_pod_status(pod_name):
     return status
 
 def get_pod_status_by_username(username):
-    res = os.popen("kubectl get pod -owide | grep {}".format(username))
+    res = os.popen("kubectl get pod -owide | grep {}".format('job-'+username+'-'))
     res = res.read().split('\n')
     pod_status = {}
     nodes = {}

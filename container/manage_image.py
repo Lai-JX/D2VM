@@ -7,7 +7,23 @@ from os.path import abspath, join, dirname
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 import requests
-# from utils import *
+import socket
+
+
+def get_host_ip():
+    """
+    查询本机ip地址
+    :return: ip
+    """
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('8.8.8.8', 80))
+        ip = s.getsockname()[0]
+    finally:
+        s.close()
+
+    return ip
+
 
 # 从私有镜像库获取所有镜像
 def get_all_images_and_tags(registry_url):
@@ -181,4 +197,5 @@ if __name__ == '__main__':
     # delete_image('ssh jxlai@192.168.1.107', 'ubuntu-ssh:v1')
     images = get_all_images_and_tags('10.249.46.189:5000')
     print(images)
+    print(get_host_ip())
     # delete_registery_image('10.249.46.189:5000','ubuntu-ssh','ljx-v2')

@@ -40,7 +40,7 @@ class ContainerView(viewsets.GenericViewSet):
             # 捕获并处理保存失败的异常
             error_message = str(e)
             print(error_message)
-            return Response({'status': status.HTTP_403_FORBIDDEN , 'message': error_message})
+            return Response({'message': error_message}, status=status.HTTP_403_FORBIDDEN )
         
 
         config['file'] = config['name'] + '-' + config['image']
@@ -57,7 +57,7 @@ class ContainerView(viewsets.GenericViewSet):
         res = {}    # pod_name, svc_name, node_name, port, path, status
         is_success = create_job(config, res)
         if not is_success:
-            return Response({'status': status.HTTP_403_FORBIDDEN , 'message': res['err_message']})
+            return Response({'message': res['err_message']}, status=status.HTTP_403_FORBIDDEN)
         
         config['pod_name'] = res['pod_name']
         config['svc_name'] = res['svc_name']
@@ -107,9 +107,9 @@ class ContainerView(viewsets.GenericViewSet):
             # 捕获并处理保存失败的异常
             error_message = str(e)
             print(error_message)
-            return Response({'status': status.HTTP_403_FORBIDDEN , 'message': error_message})
+            return Response({'message': error_message}, status=status.HTTP_403_FORBIDDEN)
 
-        return Response({'status': status.HTTP_201_CREATED, 'message': 'success', 'port': res['port'], 'IP': None if node is None else node.node_ip})
+        return Response({'message': 'success', 'port': res['port'], 'IP': None if node is None else node.node_ip}, status=status.HTTP_201_CREATED)
 
     def delete(self, request, *args, **kwargs):
         container_id = self.request.query_params.get('container_id')
@@ -119,15 +119,15 @@ class ContainerView(viewsets.GenericViewSet):
             file_path = settings.POD_CONFIG + container.file.name
             error_message = delete_job(file_path)
             if error_message is not None:
-                return Response({'status': status.HTTP_403_FORBIDDEN , 'message': error_message})
+                return Response({'message': error_message}, status=status.HTTP_403_FORBIDDEN)
             container.status = get_pod_status(container.pod_name)
             container.save()
-            return Response({'status': status.HTTP_204_NO_CONTENT})
+            return Response(status=status.HTTP_204_NO_CONTENT)
         except Exception as e:
             # 捕获并处理保存失败的异常
             error_message = str(e)
             print(error_message)
-            return Response({'status': status.HTTP_403_FORBIDDEN , 'message': error_message})
+            return Response({'message': error_message}, status=status.HTTP_403_FORBIDDEN)
         
 
 

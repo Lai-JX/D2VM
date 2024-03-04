@@ -122,10 +122,10 @@ def commit_image(ssh, container, register_path):
     # 调用终端命令
     output = run_command(command_to_run)
     if output!='':
-        return 'image already exist!'
+        return False, 'image already exist!'
     
     # 3. 提交镜像
-    command_to_run = '{} docker commit $({} docker ps --filter ancestor={} --format "{{{{.Names}}}}" | grep {}) {}'.format(ssh, ssh, image_pre, username, image_name)
+    command_to_run = '{} docker commit $({} docker ps --filter ancestor={} --format "{{{{.Names}}}}" | grep {}) {}'.format(ssh, ssh, image_pre, '_'+username+'_job', image_name)
     print('run:', command_to_run)
     output = run_command(command_to_run)
     if output is not None:
@@ -134,14 +134,14 @@ def commit_image(ssh, container, register_path):
         container.commit_image_name = image_name[len(register_path)+1:]
         container.save()
     else:
-        return 'commit fail'
+        return False, 'commit fail'
     # 4. 保存到数据库
     image_name = container.commit_image_name.split(":")
     name = ":".join(image_name[:-1])
     tag = image_name[-1]
     image = Image(name=name, tag=tag, source=username, node=container.node)
     image.save()
-    return output
+    return True, output
 
 # 推送镜像
 def push_image(ssh, register_path, image_name):
@@ -161,7 +161,7 @@ def add_image(ssh, register_path, image_name):
     command_to_run = '{} docker pull {}'.format(ssh, image_name)
     print('run:',command_to_run)
     output = run_command(command_to_run)
-    print(output)
+    print('output', output)
     if output is None:
         return 'image pull fail'
     # 2. 打tag
@@ -205,7 +205,9 @@ def delete_image(ssh, register_path, image):
         return True, output
 
 # 删除镜像库镜像
-def delete_registery_image(registry_url, image_name, tag):
+def delete_registery_image(registry_url, image):
+    image_name = image.name
+    tag = image.tag
     registry_url = 'http://' + registry_url
     manifest_url = f"{registry_url}/v2/{image_name}/manifests/{tag}"
     headers = {"Accept": "application/vnd.docker.distribution.manifest.v2+json"}
@@ -223,6 +225,8 @@ def delete_registery_image(registry_url, image_name, tag):
 
         if delete_response.status_code == 202:
             print(f"Image {image_name}:{tag} deleted successfully.")
+            image.is_push = False
+            image.save()
             return True, f"Image {image_name}:{tag} deleted successfully."
         else:
             print(f"Failed to delete image {image_name}:{tag}. Status Code: {delete_response.status_code}")

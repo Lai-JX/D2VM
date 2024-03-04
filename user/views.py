@@ -24,15 +24,14 @@ class UserCreateView(generics.CreateAPIView):
             # 处理验证失败的情况
             error_message = e.detail
             print(error_message)
-            return Response({'status': status.HTTP_403_FORBIDDEN , 'message': error_message})
+            return Response({'message': error_message}, status=status.HTTP_403_FORBIDDEN )
             
         serializer.save()                                   # 有效则保存
         user = serializer.instance
         Token.objects.get_or_create(user=user)
-        data = {"code": 200, "msg": "成功"}
 
         return Response(
-            data=data,
+            {"message": "成功"},
             status=status.HTTP_201_CREATED
         )
     
@@ -52,11 +51,15 @@ class UserLoginView(generics.GenericAPIView):
 
         if user:
             token, created = Token.objects.get_or_create(user=user)
+            if not created:                             # 删除原有的token，避免多客户端登录
+                token.delete()
+                print("delete the token before")
+                token = Token.objects.create(user=user)
             login(request, user)
             print('login', request.user)
             return Response({'token': token.key}, status=status.HTTP_200_OK)
         else:
-            return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({'message': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
 
 
 class UserLogoutView(generics.GenericAPIView):
