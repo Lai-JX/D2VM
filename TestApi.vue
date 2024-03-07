@@ -139,6 +139,14 @@
       </li>
   </ul>
 
+  <div>
+    <el-input
+      class="input"
+      v-model="restart_container_id"
+      placeholder="container_id"
+    ></el-input>
+    <button @click="onDockerRestart">Restart</button>
+  </div>
 
   <div>
     <el-input
@@ -164,6 +172,19 @@
       <input v-model="imageData.note" type="text" id="note"  >
 
       <button type="submit">添加镜像</button>
+    </form>
+  </div>
+
+  <div>
+    <form @submit.prevent="onImageAddNode">
+
+      <label for="image_id">image_id:</label>
+      <input v-model="add_note_image_id" type="text" id="image_id" required>
+
+      <label for="note">note:</label>
+      <input v-model="image_add_note" type="text" id="note"  >
+
+      <button type="submit">添加备注</button>
     </form>
   </div>
 
@@ -268,6 +289,9 @@ export default {
       push_image_id: "",
       delete_image_id: "",
       delete_opt: "",
+      image_add_note: "",
+      add_note_image_id: "",
+      restart_container_id: "",
     };
   },
   methods: {
@@ -370,6 +394,28 @@ export default {
         });
     },
 
+    onDockerRestart() {
+      console.log('onDockerRestart')
+      console.log(this.restart_container_id)
+      // 发起 get 请求
+      axios.get('http://10.249.46.117:32325/container/dockerRestart/', {
+          headers: {
+            Authorization: `Token ${globalToken}`,
+          },
+          params: {
+            container_id: this.restart_container_id,
+          },
+        })
+        .then(response => {
+          console.log('request successful', response.data);
+          // 处理响应数据
+        })
+        .catch(error => {
+          console.error('Error making request', error);
+          // 处理错误
+        });
+    },
+
 
     onAddImage() {
       console.log("onAddImage!");
@@ -463,6 +509,29 @@ export default {
           alert("wrong",res.data);
         });
     },
+
+    onImageAddNode() {
+      console.log('onImageAddNode')
+      console.log(this.add_note_image_id, this.image_add_note, globalToken)
+      // 发起 get 请求
+      axios.get('http://10.249.46.117:32325/image/addNode/', {
+          headers: {
+            Authorization: `Token ${globalToken}`,
+          },
+          params: {
+            image_id: this.add_note_image_id,
+            note: this.image_add_note,
+          },
+        })
+        .then(response => {
+          console.log('request successful', response.data);
+          // 处理响应数据
+        })
+        .catch(error => {
+          console.error('Error making request', error);
+          // 处理错误
+        });
+    }
 
     // onSyncImage() {
     //   // 发起 PATCH 请求

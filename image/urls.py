@@ -1,6 +1,6 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
-from .views import ImageViewSet, ImageSyncView, ImageSaveView, ImagePushView
+from .views import ImageViewSet, ImageSyncView, ImageSaveView, ImagePushView, ImageAddNoteView
 
 # router = DefaultRouter()
 # router.register(r'image', ImageViewSet)
@@ -10,6 +10,7 @@ urlpatterns = [
     path('sync/', ImageSyncView.as_view(), name='image_sync'),
     path('save/', ImageSaveView.as_view(), name='image_save'),
     path('push/', ImagePushView.as_view(), name='image_push'),
+    path('addNode/', ImageAddNoteView.as_view(), name='image_add_note'),
     path('', ImageViewSet.as_view({'get': 'list', 'post': 'create', 'delete': 'delete',}), name='image'),
 ]
 # urlpatterns = [

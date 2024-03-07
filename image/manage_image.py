@@ -114,8 +114,9 @@ def commit_image(ssh, container, register_path):
     # 1. 更新image版本
     image_pre = register_path + '/' + str(container.image)
     
-    username = container.user.username
+    username = '-'.join(container.svc_name.split('-')[-2:])
     image_name = manipulate_string(image_pre, username)
+    print(image_name)
     # 2. 判断镜像名是否已经存在
     command_to_run = ssh + ' docker images -q ' + image_name
     print('run:', command_to_run)
@@ -139,7 +140,7 @@ def commit_image(ssh, container, register_path):
     image_name = container.commit_image_name.split(":")
     name = ":".join(image_name[:-1])
     tag = image_name[-1]
-    image = Image(name=name, tag=tag, source=username, node=container.node)
+    image = Image(name=name, tag=tag, source=username.split('-')[0], node=container.node)
     image.save()
     return True, output
 

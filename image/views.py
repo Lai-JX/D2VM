@@ -158,7 +158,7 @@ class ImageSaveView(generics.GenericAPIView):
         # 保存容器
         # ssh到别的机器
         ssh = 'ssh jxlai@' + container.node.node_ip
-        res, flag = commit_image(ssh, container, settings.REGISTERY_PATH)
+        flag, res = commit_image(ssh, container, settings.REGISTERY_PATH)
         if flag:
             return Response({'message':res}, status=status.HTTP_200_OK)
         else:
@@ -188,7 +188,30 @@ class ImagePushView(generics.GenericAPIView):
             return Response({'message':res}, status=status.HTTP_200_OK)
         else:
             return Response({'message':res}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+
+
+# 为镜像添加note
+class ImageAddNoteView(generics.GenericAPIView):
+    # 采用token验证
+    authentication_classes = [TokenAuthentication]
+    # 使用 IsAuthenticated 权限类，确保用户已登录
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        # sync_image_to_database(settings.REGISTERY_PATH)
+        image_id = self.request.query_params.get('image_id')
+        note = self.request.query_params.get('note')
+        try:
+            image = Image.objects.get(image_id=image_id) 
+            if image.source != request.user.username:
+                return Response({'message': "error user"}, status=status.HTTP_403_FORBIDDEN)
+            image.note = note   
+            image.save()
+            return Response(status=status.HTTP_200_OK)
+        except Exception as e:
+            error_message = str(e)
+            print(error_message)
+            return Response({'message':error_message}, status=status.HTTP_403_FORBIDDEN)
     
 # 管理者专用(Deprecated)
 class ImageSyncView(generics.GenericAPIView):

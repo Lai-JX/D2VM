@@ -6,6 +6,7 @@ from os.path import abspath, join, dirname
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
+import uuid
 import requests
 import socket
 
@@ -191,11 +192,12 @@ if __name__ == '__main__':
     ssh = 'ssh jxlai@192.168.1.107'
     image_pre = '10.249.46.189:5000/geosx/ubuntu20.04-gcc9:256-139'
     container = 'lyli'
-    print(manipulate_string(image_pre, container))
+    # print(manipulate_string(image_pre, container))
     # commit_image(ssh, image_pre, container)
     # save_image_serve()
     # delete_image('ssh jxlai@192.168.1.107', 'ubuntu-ssh:v1')
-    images = get_all_images_and_tags('10.249.46.189:5000')
-    print(images)
-    print(get_host_ip())
+    images = get_all_images_and_tags('10.249.41.228:5010')
+    # print(images)
+    print('host_ip:', get_host_ip())
+    print(str(uuid.uuid1())[:5])
     # delete_registery_image('10.249.46.189:5000','ubuntu-ssh','ljx-v2')

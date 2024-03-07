@@ -9,6 +9,17 @@ from datetime import datetime
 from django.conf import settings
 import uuid
 
+# 执行终端命令
+def run_command(command):
+    try:
+        # 执行命令并等待返回结果
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True)
+        return result.stdout
+    except subprocess.CalledProcessError as e:
+        # 如果命令执行失败，捕获异常并处理
+        print(f"Command execution failed with error: {e}")
+        return None
+
 def config_job(config):
     with open('pod_config/template/template_job.yaml', 'r', encoding='utf-8') as f:
         template_yaml = yaml.load_all(f.read(), Loader=yaml.FullLoader)
@@ -36,15 +47,16 @@ def config_job(config):
     # 设置存储卷
     container.spec.volumes[0].name = config['name'] + '-volumes'
     # container.spec.volumes[0].hostPath.path = '/home/VM/' + config['name']
-    container.spec.volumes[0].nfs.path = '/home/VM/' + config['name']
+    container.spec.volumes[0].nfs.path = settings.NFS_DIR_PREFIX + config['name']
     container.spec.volumes[0].nfs.server = settings.NFS_IP
+    container.spec.volumes[1].nfs.path = settings.NFS_DIR_PREFIX + 'share/'
     container.spec.volumes[1].nfs.server = settings.NFS_IP_SHARE
     if 'shm' in config:
         container.spec.volumes[2].emptyDir.sizeLimit = config['shm']
     else:
         del container.spec.volumes[2]
     # # 在主机上创建存储卷（默认是在同主机,需要确保当前用户可以编辑该目录）
-    os.system('mkdir {}'.format(container.spec.volumes[0].nfs.path))
+    os.system('{} mkdir {}'.format(settings.NFS_SSH, container.spec.volumes[0].nfs.path))
 
     # 设置镜像
     container.spec.containers[0].image = settings.REGISTERY_PATH + '/' + config['image']
@@ -199,6 +211,20 @@ def delete_job(config_file_path):
         error_message = 'Error executing kubectl delete:'+ str(e)
         print(error_message)
         return error_message
+    
+def docker_restart(container):
+    ssh = 'ssh jxlai@' + container.node.node_ip
+    print(container.svc_name)
+    command_to_run = '{} docker restart $({} docker ps --format "{{{{.Names}}}}" | grep {})'.format(ssh, ssh, 'k8s_'+'-'.join(container.svc_name.split('-')[-2:]))
+    print('run:', command_to_run)
+    output = run_command(command_to_run)
+    if output is not None:
+        print("Command output:")
+        print(output)
+        return True
+    else:
+        return False
+
     
 if __name__ == '__main__':
     # file_path = 'template/cmd.txt'

@@ -196,8 +196,10 @@ AUTH_PASSWORD_HASHERS = [
 ]
 
 # NFS_IP
-NFS_IP = '10.249.46.117'
-NFS_IP_SHARE = '10.249.41.228'
+NFS_IP = '10.249.41.228'                    # 用户workspace目录使用的nfs
+NFS_IP_SHARE = '10.249.41.228'              # 用户share目录使用的nfs
+NFS_SSH = 'ssh shuhanqi@10.249.41.228'      # 为用户创建workspace目录对于的ssh
+NFS_DIR_PREFIX = '/volume1/VM/'             # 路径前缀
 
 # SAVE_IMAGE_PATH 如'http://10.249.46.117:32325/image/save'
 SAVE_IMAGE_IP = '10.249.46.117' # 发出save请求的终点IP

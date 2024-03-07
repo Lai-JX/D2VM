@@ -1,4 +1,5 @@
 import copy
+import uuid
 from django.shortcuts import render
 
 # Create your views here.
@@ -15,7 +16,7 @@ from user.models import User
 from image.models import Image
 from django.core.files.uploadedfile import SimpleUploadedFile
 from .serializers import ContainerSerializer, ContainerGetSerializer
-from .manage_container import delete_job, get_pod_status, create_job, get_pod_status_by_username
+from .manage_container import delete_job, docker_restart, get_pod_status, create_job, get_pod_status_by_username
 
 
 class ContainerView(viewsets.GenericViewSet):
@@ -42,7 +43,8 @@ class ContainerView(viewsets.GenericViewSet):
             print(error_message)
             return Response({'message': error_message}, status=status.HTTP_403_FORBIDDEN )
         
-
+        username = config['name']
+        config['name'] = config['name'] + '-' + str(uuid.uuid1())[:5]
         config['file'] = config['name'] + '-' + config['image']
 
         # 2. 创建job (VM or Task)
@@ -80,7 +82,7 @@ class ContainerView(viewsets.GenericViewSet):
         # 3. 判断数据是否有效并保存（是否符合序列器要求，会调用validate）
         try:
             print(res['node_name'])
-            user = User.objects.get(username=config['name'])
+            user = User.objects.get(username=username)
             
             config['user'] = user.pk
             config['image'] = image.pk
@@ -137,6 +139,10 @@ class ContainerGetView(generics.GenericAPIView):
     
     serializer_class = ContainerGetSerializer       # 只需返回特定的字段
     queryset = Container.objects.all()
+    # 采用token验证
+    authentication_classes = [TokenAuthentication]
+    # 使用 IsAuthenticated 权限类，确保用户已登录
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         # 获取用户名
@@ -172,6 +178,29 @@ class ContainerGetView(generics.GenericAPIView):
 
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+# 重启容器
+class ContainerDockerRestartView(generics.GenericAPIView):
+    # 采用token验证
+    authentication_classes = [TokenAuthentication]
+    # 使用 IsAuthenticated 权限类，确保用户已登录
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        print("docker restart")
+        container_id = self.request.query_params.get('container_id')
+        try:
+            container = Container.objects.get(container_id=container_id) 
+            if container.user.username != request.user.username:
+                return Response({'message': "error user"}, status=status.HTTP_403_FORBIDDEN)
+            if docker_restart(container):
+                return Response(status=status.HTTP_200_OK)
+            else:
+                return Response(status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            error_message = str(e)
+            print(error_message)
+            return Response({'message':error_message}, status=status.HTTP_403_FORBIDDEN)
 
 
 # class ContainerViewSet(viewsets.ModelViewSet):
