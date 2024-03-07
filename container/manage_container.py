@@ -26,8 +26,8 @@ def config_job(config):
     template_yaml = list(template_yaml)             # 包括pod和service
 
     job = munch.Munch.fromDict(template_yaml[0])  # 转化为类
-    job.metadata.name = 'job-' + config['name']
-    job.spec.selector.matchLabels.user = config['name']
+    job.metadata.name = 'job-' + config['job_name']
+    job.spec.selector.matchLabels.user = config['job_name']
     # 设置重新尝试的次数
     job.spec.backoffLimit = config['backoffLimit']
     
@@ -35,8 +35,8 @@ def config_job(config):
     service = munch.Munch.fromDict(template_yaml[1])
 
     # 设置pod的name和label
-    container.metadata.name = config['name']
-    container.metadata.labels.user = config['name']
+    container.metadata.name = config['job_name']
+    container.metadata.labels.user = config['job_name']
 
     # 设置gpu类型
     if 'gputype' in config:
@@ -45,7 +45,7 @@ def config_job(config):
         del container.spec.nodeSelector.gputype
 
     # 设置存储卷
-    container.spec.volumes[0].name = config['name'] + '-volumes'
+    container.spec.volumes[0].name = config['job_name'] + '-volumes'
     # container.spec.volumes[0].hostPath.path = '/home/VM/' + config['name']
     container.spec.volumes[0].nfs.path = settings.NFS_DIR_PREFIX + config['name']
     container.spec.volumes[0].nfs.server = settings.NFS_IP
@@ -60,7 +60,7 @@ def config_job(config):
 
     # 设置镜像
     container.spec.containers[0].image = settings.REGISTERY_PATH + '/' + config['image']
-    container.spec.containers[0].name = config['name']  # 容器名
+    container.spec.containers[0].name = config['job_name']  # 容器名
 
     # 钩子函数
     container.spec.containers[0].lifecycle.preStop.httpGet.path = f'image/save/?username={config["name"]}&image={config["image"]}&from=1'    # 传递参数，便于钩子函数保存镜像
@@ -106,8 +106,8 @@ def config_job(config):
         container.spec.tolerations.append({'key':'node-role.kubernetes.io/master', 'operator': 'Exists', 'effect':'NoSchedule'})
 
     # 设置service
-    service.metadata.name = 'job-ssh-' + config['name']
-    service.spec.selector.user = config['name']
+    service.metadata.name = 'job-ssh-' + config['job_name']
+    service.spec.selector.user = config['job_name']
     service.spec.ports[0].nodePort=config['port'] if 'port' in config else None
 
     # 保存yaml文件
@@ -215,7 +215,7 @@ def delete_job(config_file_path):
 def docker_restart(container):
     ssh = 'ssh jxlai@' + container.node.node_ip
     print(container.svc_name)
-    command_to_run = '{} docker restart $({} docker ps --format "{{{{.Names}}}}" | grep {})'.format(ssh, ssh, 'k8s_'+'-'.join(container.svc_name.split('-')[-2:]))
+    command_to_run = '{} docker restart $({} docker ps --format "{{{{.Names}}}}" | grep {})'.format(ssh, ssh, 'k8s_'+ container.job_name)
     print('run:', command_to_run)
     output = run_command(command_to_run)
     if output is not None:

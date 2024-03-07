@@ -30,6 +30,7 @@ class Container(models.Model):
     use_master = models.BooleanField(default=False)
     test = models.BooleanField(default=False)
 
+    job_name = models.CharField(max_length=255, blank=True, null=True, unique=True)
     pod_name = models.CharField(max_length=255, blank=True, null=True, unique=True)
     svc_name = models.CharField(max_length=255, blank=True, null=True)
     status = models.CharField(max_length=25, blank=True, null=True)

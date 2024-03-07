@@ -44,8 +44,8 @@ class ContainerView(viewsets.GenericViewSet):
             return Response({'message': error_message}, status=status.HTTP_403_FORBIDDEN )
         
         username = config['name']
-        config['name'] = config['name'] + '-' + str(uuid.uuid1())[:5]
-        config['file'] = config['name'] + '-' + config['image']
+        config['job_name'] = config['name'] + '-' + str(uuid.uuid1())[:5]
+        config['file'] = config['job_name'] + '-' + config['image']
 
         # 2. 创建job (VM or Task)
         if config['is_VM']:
