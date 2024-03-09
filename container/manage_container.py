@@ -63,13 +63,13 @@ def config_job(config):
     container.spec.containers[0].name = config['job_name']  # 容器名
 
     # 钩子函数
-    container.spec.containers[0].lifecycle.preStop.httpGet.path = f'image/save/?username={config["name"]}&image={config["image"]}&from=1'    # 传递参数，便于钩子函数保存镜像
-    container.spec.containers[0].lifecycle.preStop.httpGet.host = settings.SAVE_IMAGE_IP
-    container.spec.containers[0].lifecycle.preStop.httpGet.port = settings.SAVE_IMAGE_PORT
+    container.spec.containers[0].lifecycle.preStop.httpGet.path = f'image/save/?job_name={config["job_name"]}&image={config["image"]}&from=2'    # 传递参数，便于钩子函数保存镜像(Deprecated)
+    container.spec.containers[0].lifecycle.preStop.httpGet.host = settings.D2VM_IP
+    container.spec.containers[0].lifecycle.preStop.httpGet.port = settings.D2VM_PORT
 
 
     # 设置密码和启动命令，以及退出前保存镜像
-    tmp = f'curl "http://{settings.SAVE_IMAGE_IP}:{settings.SAVE_IMAGE_PORT}' + f'/image/save/?username={config["name"]}&image={config["image"]}&from=2";'                        # 通知保存镜像（使用rpc比较好）
+    tmp = f'curl delete "http://{settings.D2VM_IP}:{settings.D2VM_PORT}' + f'/container/deleteService/?job_name={config["job_name"]}&image={config["image"]}&from=1";'                        # 通知保存镜像（使用rpc比较好）
     # tmp = ''
 
     # container.spec.containers[0].args = [ base_cmd + ' echo -e "{}\\n{}\\n"|passwd;  service ssh restart; {} while true; do sleep 3600; done; {}'.format(config['password'], config['password'], config['cmd'], tmp) ]
@@ -131,23 +131,32 @@ def start_job(path, container_name, res):
         return False
     
     print(path, container_name)
-    time.sleep(5)
+    time.sleep(settings.TIME_WAIT_FOR_APPLY)
     # 获取pod_name
-    pod_res = os.popen("kubectl get pod -owide | grep {}".format('job-'+container_name+'-'))
-    pod_res = pod_res.read().split('\n')
-    print(pod_res)
+    # pod_res = os.popen("kubectl get pod -owide | grep {}".format('job-'+container_name+'-'))
+    # pod_res = pod_res.read().split('\n')
+    # print(pod_res)
     
-    if len(pod_res)==1:
-        # TODO 一般是资源不够或者是无法调度
-        pass
-    for row in pod_res:
-        row = row.split()
-        print(row)
-        if len(row) > 0 and row[2] != 'Terminating' and row[2] != 'Completed':
-            # print(row, row[2])
-            pod_name = row[0]
-            node_name = row[6]
-            status = row[2]
+    # while len(pod_res) == 1:
+    #     time.sleep(1)
+    #     pod_res = os.popen("kubectl get pod -owide | grep {}".format('job-'+container_name+'-'))
+    #     pod_res = pod_res.read().split('\n')
+    # if len(pod_res)==1:
+    #     # TODO 一般是资源不够或者是无法调度
+    #     pass
+    pod_name = None
+    while pod_name is None:
+        pod_res = os.popen("kubectl get pod -owide | grep {}".format('job-'+container_name+'-'))
+        pod_res = pod_res.read().split('\n')
+        for row in pod_res:
+            row = row.split()
+            print(row)
+            if len(row) > 0 and row[2] != 'Terminating' and row[2] != 'Completed':
+                # print(row, row[2])
+                pod_name = row[0]
+                node_name = row[6]
+                status = row[2]
+        time.sleep(1)
 
     # 获取svc_name
     svc_res = os.popen("kubectl get svc | grep {}".format("job-ssh-"+container_name))

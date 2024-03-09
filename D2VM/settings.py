@@ -202,8 +202,9 @@ NFS_SSH = 'ssh shuhanqi@10.249.41.228'      # 为用户创建workspace目录对�
 NFS_DIR_PREFIX = '/volume1/VM/'             # 路径前缀
 
 # SAVE_IMAGE_PATH 如'http://10.249.46.117:32325/image/save'
-SAVE_IMAGE_IP = '10.249.46.117' # 发出save请求的终点IP
-SAVE_IMAGE_PORT = 32325
+D2VM_IP = '10.249.46.117' # 发出save请求的终点IP
+D2VM_PORT = 32325
+TIME_WAIT_FOR_APPLY=10
 
 DOCKER_PULL_PUSH_IP = '10.249.46.117' # 使用哪台机器拉取镜像
 REGISTERY_IP = '10.249.41.228'      # 私有镜像仓库地址

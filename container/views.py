@@ -1,4 +1,5 @@
 import copy
+import subprocess
 import uuid
 from django.shortcuts import render
 
@@ -9,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
+from django.utils import timezone
 from django.conf import settings
 from django.db.models import Q, Max, OuterRef, Subquery
 from .models import Container, Node
@@ -16,7 +18,7 @@ from user.models import User
 from image.models import Image
 from django.core.files.uploadedfile import SimpleUploadedFile
 from .serializers import ContainerSerializer, ContainerGetSerializer
-from .manage_container import delete_job, docker_restart, get_pod_status, create_job, get_pod_status_by_username
+from .manage_container import delete_job, docker_restart, get_pod_status, create_job, get_pod_status_by_username, run_command
 
 
 class ContainerView(viewsets.GenericViewSet):
@@ -114,22 +116,35 @@ class ContainerView(viewsets.GenericViewSet):
         return Response({'message': 'success', 'port': res['port'], 'IP': None if node is None else node.node_ip}, status=status.HTTP_201_CREATED)
 
     def delete(self, request, *args, **kwargs):
-        container_id = self.request.query_params.get('container_id')
-        try:
-            container = Container.objects.get(container_id=container_id)
-            print('delete', container.pod_name)
-            file_path = settings.POD_CONFIG + container.file.name
-            error_message = delete_job(file_path)
-            if error_message is not None:
+        # container_id = self.request.query_params.get('container_id')
+        # 1. 来自用户delete
+        if 'container_id' in self.request.query_params:
+            container_id = self.request.query_params.get('container_id')
+            try:
+                container = Container.objects.get(container_id=container_id)
+                print('delete', container.pod_name)
+                file_path = settings.POD_CONFIG + container.file.name
+                error_message = delete_job(file_path)
+                if error_message is not None:
+                    return Response({'message': error_message}, status=status.HTTP_403_FORBIDDEN)
+                container.status = get_pod_status(container.pod_name)
+                container.save()
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            except Exception as e:
+                # 捕获并处理保存失败的异常
+                error_message = str(e)
+                print(error_message)
                 return Response({'message': error_message}, status=status.HTTP_403_FORBIDDEN)
-            container.status = get_pod_status(container.pod_name)
-            container.save()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except Exception as e:
-            # 捕获并处理保存失败的异常
-            error_message = str(e)
-            print(error_message)
-            return Response({'message': error_message}, status=status.HTTP_403_FORBIDDEN)
+        # # 2. 来自job complete前的调用
+        # else: 
+        #     job_name = self.request.query_params.get('job_name')
+        #     image = self.request.query_params.get('image').split(":")
+        #     image = Image.objects.get(name=":".join(image[:-1]), tag=image[-1])
+        #     container = Container.objects.get(job_name=job_name, image=image)
+        #     now = timezone.now()
+        #     duration = now - container.create_time
+        #     print(duration.total_seconds())
+            
         
 
 
@@ -197,6 +212,39 @@ class ContainerDockerRestartView(generics.GenericAPIView):
                 return Response(status=status.HTTP_200_OK)
             else:
                 return Response(status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            error_message = str(e)
+            print(error_message)
+            return Response({'message':error_message}, status=status.HTTP_403_FORBIDDEN)
+        
+# delete service
+class ContainerDeleteServiceView(generics.GenericAPIView):
+    # 采用token验证
+    # authentication_classes = [TokenAuthentication]
+    # 使用 IsAuthenticated 权限类，确保用户已登录
+    # permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        print("delete service")
+        try:
+            job_name = self.request.query_params.get('job_name')
+            image = self.request.query_params.get('image').split(":")
+            image = Image.objects.get(name=":".join(image[:-1]), tag=image[-1])
+            container = Container.objects.get(job_name=job_name, image=image)
+            now = timezone.now()
+            print('create_time:', container.create_time, 'current time', now)
+            duration = now - container.create_time
+            print('duration:',duration.total_seconds())
+            if duration.total_seconds()+settings.TIME_WAIT_FOR_APPLY > container.duration:
+                try:
+                    subprocess.run('kubectl delete svc {}'.format(container.svc_name), shell=True, check=True)
+                    print('kubectl delete svc {} successful'.format(container.svc_name))
+                except subprocess.CalledProcessError as e:
+                    error_message = 'Error executing kubectl delete svc:'+ str(e)
+                    print(error_message)
+                    return Response({'message':error_message}, status=status.HTTP_403_FORBIDDEN)
+                return Response(status=status.HTTP_200_OK)
+
         except Exception as e:
             error_message = str(e)
             print(error_message)
