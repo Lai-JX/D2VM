@@ -1,3 +1,4 @@
+import re
 import subprocess
 import sys
 from os.path import abspath, join, dirname
@@ -82,8 +83,19 @@ def add_prefix(text, prefix):
         text = prefix + text
     return text
 
+def ends_with_v_plus_number(s):
+    # 正则表达式解释：
+    # -v 匹配字符串 '-v'
+    # \d+ 匹配一个或多个数字
+    # $ 表示字符串的结束
+    pattern = r"-v\d+$"
+    if re.search(pattern, s):
+        return True
+    else:
+        return False
+
 # 更新镜像版本号
-def manipulate_string(input_string, username):
+def manipulate_string(input_string, container):
     # 如果字符串为空，则直接返回 '-1'
     if not input_string:
         return '-1'
@@ -91,21 +103,20 @@ def manipulate_string(input_string, username):
     # 获取字符串最后一个字符
     last_character = input_string[-1]
 
-    # 判断最后一个字符是否为数字
-    if last_character.isdigit():
-        # 如果是数字，则将最后一个字符转换为整数后加 1
-        new_last_character = str(int(last_character) + 1)
+    # 判断字符串是否以-v+数字结尾
+    if ends_with_v_plus_number(input_string):
+        # 如果是，则将最后的数字转换为整数后加 1
+        s = input_string.split('v')
+        s[-1] = str(int(s[-1])+1)
         # 替换字符串中的最后一个字符为加 1 后的数字
-        manipulated_string = input_string[:-1] + new_last_character
+        manipulated_string = 'v'.join(s)
     else:
-        # 如果不是数字，则在字符串末尾拼接 '-1'
-        manipulated_string = input_string + '-1'
-    # if not manipulated_string.startswith(username):
-    #     manipulated_string = username + manipulated_string
+        # 如果不是，则在字符串末尾拼接 '-v1'
+        manipulated_string = input_string + '-v1'
 
     manipulated_string = manipulated_string.split(':')
     # print(manipulated_string)
-    manipulated_string[-1] = add_prefix(manipulated_string[-1], username)
+    manipulated_string[-1] = add_prefix(manipulated_string[-1], container)  # 标签中加上此次的job_name
     manipulated_string = ":".join(manipulated_string)
     return manipulated_string
 
@@ -238,13 +249,6 @@ def delete_registery_image(registry_url, image):
     
 
 if __name__ == '__main__':
-    # ssh = 'ssh jxlai@192.168.1.107'
-    # image_pre = '10.249.46.189:5000/ubuntu-ssh:v1'
-    # container = 'dsun'
-    # print(manipulate_string(image_pre, container))
-    # commit_image(ssh, image_pre, container)
-    # save_image_serve()
-    # delete_image('ssh jxlai@192.168.1.107', 'ubuntu-ssh:v1')
 
     registry_url = '10.249.46.189:5000'
     # registry_url = 'http://10.249.46.189:5000'

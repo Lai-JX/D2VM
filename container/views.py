@@ -47,7 +47,7 @@ class ContainerView(viewsets.GenericViewSet):
         
         username = config['name']
         config['job_name'] = config['name'] + '-' + str(uuid.uuid1())[:5]
-        config['file'] = config['job_name'] + '-' + config['image']
+        config['file'] = config['job_name'] + '-' + config['image'].replace('/','-')
 
         # 2. 创建job (VM or Task)
         if config['is_VM']:
@@ -79,6 +79,10 @@ class ContainerView(viewsets.GenericViewSet):
         try:
             node = Node.objects.get(node_name=res['node_name'])
             config['node'] = node.pk
+            print("update gpu num")
+            # 更新剩余gpu数
+            node.gpu_remain_num -= config['num_gpu']
+            node.save()
         except Node.DoesNotExist:       # 容器为pending
             node = None
         # 3. 判断数据是否有效并保存（是否符合序列器要求，会调用validate）
@@ -129,6 +133,9 @@ class ContainerView(viewsets.GenericViewSet):
                     return Response({'message': error_message}, status=status.HTTP_403_FORBIDDEN)
                 container.status = get_pod_status(container.pod_name)
                 container.save()
+                # 更新GPU数
+                container.node.gpu_remain_num += container.num_gpu
+                container.node.save()
                 return Response(status=status.HTTP_204_NO_CONTENT)
             except Exception as e:
                 # 捕获并处理保存失败的异常
@@ -177,10 +184,14 @@ class ContainerGetView(generics.GenericAPIView):
         # 更新pod状态和所属节点
         for pod in queryset:
             if pod.pod_name in pod_status:
+                pod_status_pre = pod.status
                 pod.status = pod_status[pod.pod_name]
                 try:
                     node = Node.objects.get(node_name=nodes[pod.pod_name])
                     pod.node = node
+                    if pod_status_pre == 'Pending':             # 更新GPU数
+                        node.gpu_remain_num -= pod.num_gpu
+                        node.save()
                 except Node.DoesNotExist:       # 容器为pending
                     pod.node = None
             else:
@@ -238,6 +249,9 @@ class ContainerDeleteServiceView(generics.GenericAPIView):
             if duration.total_seconds()+settings.TIME_WAIT_FOR_APPLY > container.duration:
                 try:
                     subprocess.run('kubectl delete svc {}'.format(container.svc_name), shell=True, check=True)
+                    # 更新GPU数
+                    container.node.gpu_remain_num += container.num_gpu
+                    container.node.save()
                     print('kubectl delete svc {} successful'.format(container.svc_name))
                 except subprocess.CalledProcessError as e:
                     error_message = 'Error executing kubectl delete svc:'+ str(e)

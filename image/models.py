@@ -7,6 +7,8 @@ class Node(models.Model):
     node_ip = models.GenericIPAddressField(unique=True, verbose_name='主机IP')
     # gputype = models.CharField(max_length=255, verbose_name='GPU类型', null=True)
     gputype = models.JSONField(max_length=255, verbose_name='GPU类型', null=True)
+    gpu_num = models.IntegerField(verbose_name='GPU总数', null=True)
+    gpu_remain_num = models.IntegerField(verbose_name='GPU剩余数', null=True)
 
     def __str__(self):
         return self.node_name + ' ' + self.node_ip
