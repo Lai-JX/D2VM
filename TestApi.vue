@@ -1,21 +1,46 @@
 <template>
   <h1>USER</h1>
-  <el-form :inline="true" :model="formInline" size="small">
-    <el-form-item label="用户信息">
+  <el-form :inline="true" :model="registeryData" size="small">
+    <el-form-item label="用户注册：">
       <el-input
         class="input"
-        v-model="formInline.username"
+        v-model="registeryData.username"
         placeholder="用户名"
       ></el-input>
       <el-input
         class="input"
-        v-model="formInline.password"
-        placeholder="password"
+        v-model="registeryData.email"
+        placeholder="email"
+      ></el-input>
+      <el-button type="primary" @click="onGetCode">获取验证码</el-button>
+      <el-input
+        class="input"
+        v-model="registeryData.code"
+        placeholder="验证码"
       ></el-input>
       <el-input
         class="input"
-        v-model="formInline.email"
-        placeholder="email"
+        v-model="registeryData.password"
+        placeholder="password"
+      ></el-input>
+    </el-form-item>
+    <el-form-item>
+      <!-- <el-button type="primary" @click="onSubmitGet">get 查询所有</el-button> -->
+      
+      <el-button type="primary" @click="onRegister">post 注册</el-button>
+    </el-form-item>
+  </el-form>
+  <el-form :inline="true" :model="loginData" size="small">
+    <el-form-item label="用户信息">
+      <el-input
+        class="input"
+        v-model="loginData.username"
+        placeholder="用户名"
+      ></el-input>
+      <el-input
+        class="input"
+        v-model="loginData.password"
+        placeholder="password"
       ></el-input>
     </el-form-item>
     <el-form-item>
@@ -86,6 +111,7 @@
         <select id="gputype" v-model="containerData.gputype">
           <option value="">--</option>
           <option value="4090">NVIDIA GeForce RTX 4090</option>
+          <option value="3090">NVIDIA GeForce RTX 3090</option>
           <option value="a6000">NVIDIA RTX A6000</option>
           <option value="h800">NVIDIA H800 PCIe</option>
         </select>
@@ -109,6 +135,16 @@
       <div class="form-group">
         <label for="shm">share memory:</label>
         <input type="test" v-model="containerData.shm">
+      </div>
+
+      <div class="form-group">
+        <label for="hostname">hostname:</label>
+        <input type="test" v-model="containerData.hostname">
+      </div>
+
+      <div class="form-group">
+        <label for="ephemeral_storage">ephemeral_storage:</label>
+        <input type="test" v-model="containerData.ephemeral_storage">
       </div>
 
       <div class="form-group">
@@ -176,7 +212,7 @@
   </div>
 
   <div>
-    <form @submit.prevent="onImageAddNode">
+    <form @submit.prevent="onImageaddNote">
 
       <label for="image_id">image_id:</label>
       <input v-model="add_note_image_id" type="text" id="image_id" required>
@@ -231,6 +267,16 @@
 
     <button @click="onDeleteImage">Delete</button>
   </div>
+  <div>
+    <label for="chmod_image_id">chmod_image_id:</label>
+    <input type="text" v-model="chmod_image_id">
+
+
+    <label for="chmod_is_public">chmod_is_public(0:false; 1:true):</label>
+    <input type="text" v-model="chmod_is_public">
+
+  <button @click="onImageChmod">change</button>
+</div>
 
   <!-- <div>
     <button @click="onSyncImage">同步私有镜像库中的镜像数据到数据库（debug用）</button>
@@ -250,10 +296,15 @@ export default {
   },
   data() {
     return {
-      formInline: {
+      loginData: {
         username: "",
         password: "",
+      },
+      registeryData: {
+        username: "",
         email: "",
+        code: "",
+        password: "",
       },
       containerData: {
         name: 'myubuntu',
@@ -272,7 +323,9 @@ export default {
         is_VM: true,
         use_master: false,
         gputype: '',
-        shm: '64M'
+        shm: '64M',
+        hostname: '',
+        ephemeral_storage: '',
       },
       capabilities: ['CAP_SYS_ADMIN', 'NET_BIND_SERVICE'],
       selectedCapability: null,
@@ -292,28 +345,51 @@ export default {
       image_add_note: "",
       add_note_image_id: "",
       restart_container_id: "",
+      chmod_image_id: "",
+      chmod_is_public: "",
     };
   },
   methods: {
     onLogin() {
       console.log("onLogin!");
-      console.log("data",this.formInline)
-      axios.post("http://10.249.46.117:32325/user/login/", this.formInline)
+      console.log("data",this.loginData)
+      axios.post("http://10.249.40.11:32325/user/login/", this.loginData)
       .then((res) => {
          console.log('success')
-         console.log(res.data, this.formInline.username); //在console中看到数据
+         console.log(res.data, this.loginData.username); //在console中看到数据
          globalToken = res.data.token
-         username = this.formInline.username
+         username = this.loginData.username
         })
         .catch((res) => {
           alert("wrong",res.data);
         });
     },
+
+    onGetCode() {
+      console.log("onGetCode!");
+
+      var getCodeData = {getCodeData:'', email:''}
+      getCodeData.username=this.registeryData.username
+      getCodeData.email=this.registeryData.email
+
+      axios.post("http://10.249.40.11:32325/user/register/sendCode/", getCodeData)
+      .then((res) => {
+         console.log('success')
+         console.log(res); //在console中看到数据
+        })
+        .catch((res) => {
+          console.log(res)
+          if (res.response.status==400) {
+            alert("wrong:"+JSON.stringify(res.response.data));
+          }
+            
+        });
+    },
     
     onRegister() {
       console.log("onRegister!");
-      console.log("data",this.formInline)
-      axios.post("http://10.249.46.117:32325/user/register/", this.formInline)
+      console.log("data",this.registeryData)
+      axios.post("http://10.249.40.11:32325/user/register/", this.registeryData)
       .then((res) => {
          console.log('success')
          console.log(res.data); //在console中看到数据
@@ -325,7 +401,7 @@ export default {
 
     onLogout() {
       console.log("onLogout!");
-      axios.get('http://10.249.46.117:32325/user/logout/', {
+      axios.get('http://10.249.40.11:32325/user/logout/', {
         headers: {
           Authorization: `Token ${globalToken}`,
         },
@@ -347,7 +423,7 @@ export default {
         Object.entries(this.containerData).filter(([, value]) => value !== null && value !== "")
       );
       console.log("data",this.containerData)
-      axios.post("http://10.249.46.117:32325/container/", this.containerData, {
+      axios.post("http://10.249.40.11:32325/container/", this.containerData, {
         headers: {
           Authorization: `Token ${globalToken}`,
         },
@@ -363,7 +439,7 @@ export default {
 
     onGetAllContainer() {
       console.log("onGetAllContainer!");
-      axios.get('http://10.249.46.117:32325/container/get/', {
+      axios.get('http://10.249.40.11:32325/container/get/', {
         headers: {
           Authorization: `Token ${globalToken}`,
         },
@@ -380,7 +456,7 @@ export default {
 
     onDeleteContainer() {
       console.log("onDeleteContainer!", this.delete_container_id);
-      axios.delete('http://10.249.46.117:32325/container/?container_id='+this.delete_container_id, {
+      axios.delete('http://10.249.40.11:32325/container/?container_id='+this.delete_container_id, {
         headers: {
           Authorization: `Token ${globalToken}`,
         },
@@ -398,7 +474,7 @@ export default {
       console.log('onDockerRestart')
       console.log(this.restart_container_id)
       // 发起 get 请求
-      axios.get('http://10.249.46.117:32325/container/dockerRestart/', {
+      axios.get('http://10.249.40.11:32325/container/dockerRestart/', {
           headers: {
             Authorization: `Token ${globalToken}`,
           },
@@ -421,7 +497,7 @@ export default {
       console.log("onAddImage!");
       console.log("data",this.imageData)
       // 例如，您可以在这里使用 Axios 或 Fetch 发送数据到后端
-      axios.post("http://10.249.46.117:32325/image/", this.imageData, {
+      axios.post("http://10.249.40.11:32325/image/", this.imageData, {
         headers: {
           Authorization: `Token ${globalToken}`,
         },
@@ -437,7 +513,7 @@ export default {
 
     onGetAllImage() {
       console.log("onGetAllImage!");
-      axios.get('http://10.249.46.117:32325/image/', {
+      axios.get('http://10.249.40.11:32325/image/', {
         headers: {
           Authorization: `Token ${globalToken}`,
         },
@@ -457,7 +533,7 @@ export default {
       // console.log('onSaveImage')
       console.log("onSaveImage!", this.save_container_id);
       // 发起 PATCH 请求
-      axios.get('http://10.249.46.117:32325/image/save/?container_id=' + this.save_container_id, {
+      axios.get('http://10.249.40.11:32325/image/save/?container_id=' + this.save_container_id, {
           headers: {
             Authorization: `Token ${globalToken}`,
           },
@@ -475,7 +551,7 @@ export default {
     onPushImage() {
       console.log("onPushImage!", this.push_image_id);
       // 发起 PATCH 请求
-      axios.get('http://10.249.46.117:32325/image/push/?image_id=' + this.push_image_id, {
+      axios.get('http://10.249.40.11:32325/image/push/?image_id=' + this.push_image_id, {
           headers: {
             Authorization: `Token ${globalToken}`,
           },
@@ -492,7 +568,7 @@ export default {
 
     onDeleteImage() {
       console.log("onDeleteImage!", this.delete_image_id, this.delete_opt);
-      axios.delete('http://10.249.46.117:32325/image/', {
+      axios.delete('http://10.249.40.11:32325/image/', {
         headers: {
           Authorization: `Token ${globalToken}`,
         },
@@ -510,11 +586,11 @@ export default {
         });
     },
 
-    onImageAddNode() {
-      console.log('onImageAddNode')
+    onImageaddNote() {
+      console.log('onImageaddNote')
       console.log(this.add_note_image_id, this.image_add_note, globalToken)
       // 发起 get 请求
-      axios.get('http://10.249.46.117:32325/image/addNode/', {
+      axios.get('http://10.249.40.11:32325/image/addNote/', {
           headers: {
             Authorization: `Token ${globalToken}`,
           },
@@ -531,11 +607,33 @@ export default {
           console.error('Error making request', error);
           // 处理错误
         });
+    },
+
+    onImageChmod() {
+      console.log('onImageChmod')
+      // 发起 get 请求
+      axios.get('http://10.249.40.11:32325/image/chmod/', {
+          headers: {
+            Authorization: `Token ${globalToken}`,
+          },
+          params: {
+            image_id: this.chmod_image_id,
+            is_public: this.chmod_is_public,      // 0:false; 1:true
+          },
+        })
+        .then(response => {
+          console.log('request successful', response.data);
+          // 处理响应数据
+        })
+        .catch(error => {
+          console.error('Error making request', error);
+          // 处理错误
+        });
     }
 
     // onSyncImage() {
     //   // 发起 PATCH 请求
-    //   axios.patch('http://10.249.46.117:32325/image/sync/', {}, {
+    //   axios.patch('http://10.249.40.11:32325/image/sync/', {}, {
     //       headers: {
     //         Authorization: `Token ${globalToken}`,
     //       },

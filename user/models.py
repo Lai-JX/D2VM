@@ -16,3 +16,8 @@ class User(AbstractUser):
         verbose_name_plural = verbose_name
     def __str__(self):
         return self.username
+    
+class VerifyCode(models.Model):
+    email = models.EmailField(verbose_name="email", blank=True)
+    code = models.CharField(max_length=6, verbose_name="验证码")
+    add_time = models.DateTimeField(verbose_name='生成时间', auto_now_add=True)

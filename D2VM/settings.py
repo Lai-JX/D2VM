@@ -198,14 +198,22 @@ AUTH_PASSWORD_HASHERS = [
 # NFS_IP
 NFS_IP = '10.249.41.228'                    # 用户workspace目录使用的nfs
 NFS_IP_SHARE = '10.249.41.228'              # 用户share目录使用的nfs
-NFS_SSH = 'ssh shuhanqi@10.249.41.228'      # 为用户创建workspace目录对于的ssh
+NFS_SSH = 'ssh shuhanqi@10.249.41.228'      # 为用户创建workspace目录对应的ssh
 NFS_DIR_PREFIX = '/volume1/VM/'             # 路径前缀
 
-# SAVE_IMAGE_PATH 如'http://10.249.46.117:32325/image/save'
-D2VM_IP = '10.249.46.117' # 发出save请求的终点IP
+# SAVE_IMAGE_PATH 如'http://10.249.40.11:32325/image/save'
+D2VM_IP = '10.249.40.11' # 发出save请求的终点IP
 D2VM_PORT = 32325
 TIME_WAIT_FOR_APPLY=5
 
-DOCKER_PULL_PUSH_IP = '10.249.46.117' # 使用哪台机器拉取镜像
-REGISTERY_IP = '10.249.41.228'      # 私有镜像仓库地址
-REGISTERY_PATH = '10.249.41.228:5010'   
+DOCKER_PULL_PUSH_IP = '10.249.40.11' # 使用哪台机器拉取镜像
+REGISTERY_IP = '192.158.0.10'      # 私有镜像仓库地址
+REGISTERY_PATH = '192.158.0.10:5010'   
+
+# 发送邮箱验证码
+EMAIL_HOST = "smtp.163.com"     # 服务器
+EMAIL_PORT = 25                 # 一般情况下都为25
+EMAIL_HOST_USER = "hitsz_haios@163.com"     # 账号
+EMAIL_HOST_PASSWORD = "******"          # 密码 (注意：这里的密码指的是授权码)
+EMAIL_USE_TLS = False       # 一般都为False
+EMAIL_FROM = "hitsz_haios@163.com"      # 邮箱来自

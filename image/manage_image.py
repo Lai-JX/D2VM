@@ -121,9 +121,14 @@ def manipulate_string(input_string, container):
     return manipulated_string
 
 # 提交镜像
-def commit_image(ssh, container, register_path):
+def commit_image(ssh, container, register_path, auto=False):
+    image_use = register_path + '/' + str(container.image)
+
     # 1. 更新image版本
-    image_pre = register_path + '/' + str(container.image)
+    if container.commit_image_name is None:
+        image_pre = image_use
+    else:
+        image_pre = register_path + '/' + str(container.commit_image_name)
     
     job_name = container.job_name
     image_name = manipulate_string(image_pre, job_name)
@@ -137,7 +142,7 @@ def commit_image(ssh, container, register_path):
         return False, 'image already exist!'
     
     # 3. 提交镜像
-    command_to_run = '{} docker commit $({} docker ps --filter ancestor={} --format "{{{{.Names}}}}" | grep {}) {}'.format(ssh, ssh, image_pre, '_'+job_name+'_job', image_name)
+    command_to_run = '{} docker commit $({} docker ps --filter ancestor={} --format "{{{{.Names}}}}" | grep {}) {}'.format(ssh, ssh, image_use, '_'+job_name+'_job', image_name)
     print('run:', command_to_run)
     output = run_command(command_to_run)
     if output is not None:
@@ -151,7 +156,10 @@ def commit_image(ssh, container, register_path):
     image_name = container.commit_image_name.split(":")
     name = ":".join(image_name[:-1])
     tag = image_name[-1]
-    image = Image(name=name, tag=tag, source=job_name.split('-')[0], node=container.node)
+    note = None
+    if auto:
+        note = 'Auto commit before container finishing'
+    image = Image(name=name, tag=tag, source=job_name.split('-')[0], user=container.user, node=container.node, note=note)
     image.save()
     return True, output
 
@@ -159,6 +167,7 @@ def commit_image(ssh, container, register_path):
 def push_image(ssh, register_path, image_name):
     image_name = register_path + '/' + image_name
     command_to_run = '{} docker push {}'.format(ssh, image_name)
+    print("run", command_to_run)
     output = run_command(command_to_run)
     if output is not None:
         print("Command output:")

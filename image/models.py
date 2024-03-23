@@ -1,10 +1,13 @@
 from django.db import models
 
+from user.models import User
+
 # Create your models here.
 class Node(models.Model):
     node_id = models.AutoField(primary_key=True, verbose_name='节点编号')
     node_name = models.CharField(max_length=255, unique=True, verbose_name='主机名')
     node_ip = models.GenericIPAddressField(unique=True, verbose_name='主机IP')
+    internal_ip = models.GenericIPAddressField(unique=True, verbose_name='内部IP',  null=True)
     # gputype = models.CharField(max_length=255, verbose_name='GPU类型', null=True)
     gputype = models.JSONField(max_length=255, verbose_name='GPU类型', null=True)
     gpu_num = models.IntegerField(verbose_name='GPU总数', null=True)
@@ -25,7 +28,9 @@ class Image(models.Model):
     note = models.CharField(max_length=255, null=True, blank=True)
 
     is_push = models.BooleanField(default=False)
+    is_public = models.BooleanField(default=True)
     node = models.ForeignKey(Node, on_delete=models.SET_NULL, blank=True, null=True)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, null=True, verbose_name='所属用户')    
 
     def __str__(self):
         return self.name + ':' + self.tag

@@ -1,4 +1,6 @@
+from random import choice
 from django.shortcuts import render
+from D2VM import settings
 from rest_framework.authtoken.models import Token
 from rest_framework import generics, status
 from rest_framework.response import Response
@@ -7,11 +9,73 @@ from django.contrib.auth import authenticate, login, logout
 from rest_framework import serializers
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
+from django.core.mail import send_mail
 
 # Create your views here.
 from rest_framework import viewsets
-from .models import User
-from .serializers import UserCreateSerializer, UserLoginSerializer
+from .models import User, VerifyCode
+from .serializers import UserCreateSerializer, UserLoginSerializer, VerifyCodeSerializer
+
+def send_code_email(code, to_email_adress, send_type="register"):
+    # 如果为注册类型
+    if send_type == "register":
+        email_title = "HAIOS 系统验码"
+        # email_body = "请点击下面的链接激活你的账号:http://127.0.0.1:8000/active/{0}".format(code)
+        email_body = "您的邮箱注册验证码为：{0}, 该验证码有效时间为5分钟，请及时进行验证。".format(code)
+        # 发送邮件
+        send_status = send_mail(email_title, email_body, settings.EMAIL_FROM, [to_email_adress])
+        if not send_status:
+            return False
+    if send_type == "retrieve":
+        email_title = "HAIOS 系统验码"
+        email_body = "您的邮箱验证码为：{0}, 该验证码有效时间为5分钟，请及时进行验证。".format(code)
+        # 发送邮件
+        send_status = send_mail(email_title, email_body, settings.EMAIL_FROM, [to_email_adress])
+        if not send_status:
+            return False
+    return True
+
+class VerifyCodeView(generics.CreateAPIView):
+    """
+    发送验证码
+    """
+    permission_classes = [AllowAny] #允许所有人注册
+    serializer_class = VerifyCodeSerializer #相关的发送前验证逻辑
+
+    def generate_code(self):
+        """
+        生成6位数验证码 防止破解
+        :return:
+        """
+        seeds = "1234567890abcdefghijklmnopqrstuvwxyz"
+        random_str = []
+        for i in range(6):
+            random_str.append(choice(seeds))
+        return "".join(random_str)
+
+    def create(self, request, *args, **kwargs):
+        print("/user/register/sendCode")
+        serializer = self.get_serializer(data=request.data)             # email和username
+        serializer.is_valid(raise_exception=True) #这一步相当于发送前验证
+        print(1)
+        # 从 validated_data 中获取 email
+        email = serializer.validated_data["email"]
+        # 随机生成code
+        code = self.generate_code()
+
+        # 发送短信或邮件验证码
+        sms_status = send_code_email(code=code, to_email_adress=email)
+
+        if sms_status == 0:            
+            return Response({"msg": "邮件发送失败"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            code_record = VerifyCode(code=code, email=email)
+            # 保存验证码
+            code_record.save()   
+            return Response(
+                {"message": f"验证码已经向 {email} 发送完成"}, status=status.HTTP_201_CREATED
+            )
+
 
 class UserCreateView(generics.CreateAPIView):
     serializer_class = UserCreateSerializer
@@ -19,7 +83,7 @@ class UserCreateView(generics.CreateAPIView):
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data) # 使用传过来的数据实例化一个序列器   
         try:
-            serializer.is_valid(raise_exception=True)       # 判断数据是否有效（是否符合序列器要求，目前pass）
+            serializer.is_valid(raise_exception=True)       # 判断数据是否有效（是否符合序列器要求，目前pass） 
         except serializers.ValidationError as e:
             # 处理验证失败的情况
             error_message = e.detail

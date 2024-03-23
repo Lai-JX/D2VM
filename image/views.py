@@ -51,6 +51,12 @@ class ImageViewSet(viewsets.GenericViewSet):
         image['source'] = 'public'
         image['is_push'] = True
         print(image)
+        try:
+            image_tmp = Image.objects.get(name=image['name'], tag=image['tag'])
+            print(image_tmp)
+            return Response({'message': 'image already exist'}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            pass
         serializer = self.get_serializer(data=image)
         if settings.DOCKER_PULL_PUSH_IP == get_host_ip():
             ssh = ''
@@ -59,15 +65,21 @@ class ImageViewSet(viewsets.GenericViewSet):
         res = add_image(ssh, settings.REGISTERY_PATH, image['name']+":"+image['tag'])
         if res == 'image pull fail' or res == 'push fail':
             return Response({'message': res}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+        
         try:
-            serializer.is_valid(raise_exception=True)
-            serializer.save() # TODO
+            image_tmp = Image.objects.get(name=image['name'], tag=image['tag'])
+            print(image_tmp)
+            return Response({'message': 'image already exist'}, status=status.HTTP_403_FORBIDDEN)
         except Exception as e:
-            # 捕获并处理保存失败的异常
-            error_message = str(e)
-            print(error_message)
-            return Response({'message': error_message}, status=status.HTTP_403_FORBIDDEN)
+
+            try:
+                serializer.is_valid(raise_exception=True)
+                serializer.save() # TODO
+            except Exception as e:
+                # 捕获并处理保存失败的异常
+                error_message = str(e)
+                print(error_message)
+                return Response({'message': error_message}, status=status.HTTP_403_FORBIDDEN)
         headers = self.get_success_headers(serializer.data)
 
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
@@ -85,9 +97,12 @@ class ImageViewSet(viewsets.GenericViewSet):
 
         # 获取用户名
         username = request.user.username
-        print(username)
+        print(username, request.user.is_staff)
         # queryset = self.filter_queryset(self.get_queryset().filter(source=username))
-        queryset = self.filter_queryset(self.get_queryset().filter(Q(source=username) | Q(source='public')))
+        if request.user.is_staff:               # admin 用户
+            queryset = self.get_queryset()
+        else:
+            queryset = self.filter_queryset(self.get_queryset().filter(Q(user=request.user) | Q(is_public=True)))
 
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -103,10 +118,12 @@ class ImageViewSet(viewsets.GenericViewSet):
         print(image_id,  delete_opt)
 
         image = Image.objects.get(image_id=image_id)
+        if image.user != request.user and not request.user.is_staff:
+            return Response({'message': "error user"}, status=status.HTTP_403_FORBIDDEN)
         if image.node == None:          # 删除过本地后，image.node就是None
             ssh = 'ssh jxlai@' + settings.DOCKER_PULL_PUSH_IP
         else:
-            ssh = 'ssh jxlai@' + image.node.node_ip
+            ssh = 'ssh jxlai@' + image.node.internal_ip  # ljx_change
         if delete_opt == 2:                 # delete all
             flag1, res1 = delete_registery_image(settings.REGISTERY_PATH, image)
             flag2, res2 = delete_image(ssh, settings.REGISTERY_PATH, image)
@@ -155,9 +172,11 @@ class ImageSaveView(generics.GenericAPIView):
             user = User.objects.get(username=username)
             image = Image.objects.get(name=":".join(image[:-1]), tag=image[-1])
             container = Container.objects.get(user=user, image=image)
+        if container.user != request.user and not request.user.is_staff:
+            return Response({'message': "error user"}, status=status.HTTP_403_FORBIDDEN)
         # 保存容器
         # ssh到别的机器
-        ssh = 'ssh jxlai@' + container.node.node_ip
+        ssh = 'ssh jxlai@' + container.node.internal_ip  # ljx_change
         flag, res = commit_image(ssh, container, settings.REGISTERY_PATH)
         if flag:
             return Response({'message':res}, status=status.HTTP_200_OK)
@@ -178,8 +197,11 @@ class ImagePushView(generics.GenericAPIView):
     def get(self, request, *args, **kwargs):
         # 获取镜像
         image_id = self.request.query_params.get('image_id')
+        print("push image_id:", image_id)
         image = Image.objects.get(image_id=image_id)
-        ssh = 'ssh jxlai@' + image.node.node_ip
+        if image.user != request.user and not request.user.is_staff:
+            return Response({'message': "error user"}, status=status.HTTP_403_FORBIDDEN)
+        ssh = 'ssh jxlai@' + image.node.internal_ip  # ljx_change
         res = push_image(ssh, settings.REGISTERY_PATH, str(image))
         print(res)
         if res != 'push fail':
@@ -188,6 +210,28 @@ class ImagePushView(generics.GenericAPIView):
             return Response({'message':res}, status=status.HTTP_200_OK)
         else:
             return Response({'message':res}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+# 修改镜像开放权限
+class ImageChmodView(generics.GenericAPIView):
+    # serializer_class = ImageSerializer
+    # queryset = Image.objects.all()
+
+    # 采用token验证
+    authentication_classes = [TokenAuthentication]
+    # 使用 IsAuthenticated 权限类，确保用户已登录
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        # 获取镜像
+        image_id = self.request.query_params.get('image_id')
+        is_public = bool(int(self.request.query_params.get('is_public')))
+        image = Image.objects.get(image_id=image_id)
+        if image.user != request.user and not request.user.is_staff:
+            return Response({'message': "error user"}, status=status.HTTP_403_FORBIDDEN)
+        print("image name:{}, is_public:{}".format(str(image), is_public),self.request.query_params.get('is_public'))
+        image.is_public = is_public
+        image.save()
+        return Response(status=status.HTTP_200_OK)
 
 
 # 为镜像添加note
@@ -203,7 +247,7 @@ class ImageAddNoteView(generics.GenericAPIView):
         note = self.request.query_params.get('note')
         try:
             image = Image.objects.get(image_id=image_id) 
-            if image.source != request.user.username:
+            if image.user != request.user and not request.user.is_staff:
                 return Response({'message': "error user"}, status=status.HTTP_403_FORBIDDEN)
             image.note = note   
             image.save()

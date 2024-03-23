@@ -44,19 +44,29 @@ def config_job(config):
     else:
         del container.spec.nodeSelector.gputype
 
+    # 设置主机名
+    if 'hostname' in config:
+        container.spec.nodeSelector['kubernetes.io/hostname'] = config['hostname']
+    else:
+        del container.spec.nodeSelector['kubernetes.io/hostname']
+
+    
+
     # 设置存储卷
     container.spec.volumes[0].name = config['job_name'] + '-volumes'
-    # container.spec.volumes[0].hostPath.path = '/home/VM/' + config['name']
-    container.spec.volumes[0].nfs.path = settings.NFS_DIR_PREFIX + config['name']
-    container.spec.volumes[0].nfs.server = settings.NFS_IP
-    container.spec.volumes[1].nfs.path = settings.NFS_DIR_PREFIX + 'share/'
-    container.spec.volumes[1].nfs.server = settings.NFS_IP_SHARE
+    container.spec.volumes[0].hostPath.path = '/VM/' + config['name']
+    # container.spec.volumes[0].nfs.path = settings.NFS_DIR_PREFIX + config['name']
+    # container.spec.volumes[0].nfs.server = settings.NFS_IP
+    # container.spec.volumes[1].nfs.path = settings.NFS_DIR_PREFIX + 'share/'
+    # container.spec.volumes[1].nfs.server = settings.NFS_IP_SHARE
     if 'shm' in config:
         container.spec.volumes[2].emptyDir.sizeLimit = config['shm']
     else:
         del container.spec.volumes[2]
     # # 在主机上创建存储卷（默认是在同主机,需要确保当前用户可以编辑该目录）
-    os.system('{} mkdir {}'.format(settings.NFS_SSH, container.spec.volumes[0].nfs.path))
+    print(os.system('id'))
+    os.system('mkdir {}'.format(container.spec.volumes[0].hostPath.path))
+    # os.system('{} mkdir {}'.format(settings.NFS_SSH, container.spec.volumes[0].nfs.path))
 
     # 设置镜像
     container.spec.containers[0].image = settings.REGISTERY_PATH + '/' + config['image']
@@ -69,12 +79,12 @@ def config_job(config):
 
 
     # 设置密码和启动命令，以及退出前保存镜像
-    tmp = f'curl delete "http://{settings.D2VM_IP}:{settings.D2VM_PORT}' + f'/container/deleteService/?job_name={config["job_name"]}&image={config["image"]}&from=1";'                        # 通知保存镜像（使用rpc比较好）
+    tmp = f'curl "http://{settings.D2VM_IP}:{settings.D2VM_PORT}' + f'/container/deleteService/?job_name={config["job_name"]}&image={config["image"]}&from=1";'                        # 通知保存镜像（使用rpc比较好）
     # tmp = ''
 
     # container.spec.containers[0].args = [ base_cmd + ' echo -e "{}\\n{}\\n"|passwd;  service ssh restart; {} while true; do sleep 3600; done; {}'.format(config['password'], config['password'], config['cmd'], tmp) ]
     # container.spec.containers[0].args = [ base_cmd + ' echo -e "{}\\n{}\\n"|passwd;  service ssh restart; {} {}'.format(config['password'], config['password'], config['cmd'], tmp) ]
-    container.spec.containers[0].args = [ '/share/base_cmd.sh; echo -e "{}\\n{}\\n"|passwd;  service ssh restart; {} {}'.format(config['password'], config['password'], config['cmd'], tmp) ]
+    container.spec.containers[0].args = [ '/share/base_cmd.sh; echo -e "{}\\n{}\\n"|passwd;  service ssh restart; {} service ssh stop; service ssh disable; {}'.format(config['password'], config['password'], config['cmd'], tmp) ]
 
     # 挂载
     container.spec.containers[0].volumeMounts[0].mountPath = config['path']
@@ -93,6 +103,12 @@ def config_job(config):
         container.spec.containers[0].resources.requests['nvidia.com/gpucores'] = config['gpucores']
     else:
         del container.spec.containers[0].resources.requests['nvidia.com/gpucores']
+    # 设置临时存储大小限制
+    if 'ephemeral_storage' in config:
+        container.spec.containers[0].resources.requests['ephemeral-storage'] = config['ephemeral_storage']
+    else:
+        del container.spec.containers[0].resources.requests['ephemeral-storage']
+
     container.spec.containers[0].resources.requests['cpu'] = config['cpu']
     container.spec.containers[0].resources.requests['memory'] = config['memory']
     container.spec.containers[0].resources.limits = copy.deepcopy(container.spec.containers[0].resources.requests)
@@ -194,8 +210,11 @@ def get_pod_status(pod_name):
     print(status)
     return status
 
-def get_pod_status_by_username(username):
-    res = os.popen("kubectl get pod -owide | grep {}".format('job-'+username+'-'))
+def get_pod_status_by_username(username, is_staff=False):
+    if is_staff:
+        res = os.popen("kubectl get pod -owide | grep -v dcgm-exporter")
+    else:
+        res = os.popen("kubectl get pod -owide | grep {}".format('job-'+username+'-'))
     res = res.read().split('\n')
     pod_status = {}
     nodes = {}
@@ -210,7 +229,7 @@ def get_pod_status_by_username(username):
     # else:
     #     status = res[0].split()[2]
     # print(pod_status)
-    return pod_status, nodes
+    return pod_status, nodes        # {pod_name:status} {pod_name:node}
 def delete_job(config_file_path):
     try:
         subprocess.run('kubectl delete -f {}'.format(config_file_path), shell=True, check=True)
@@ -222,7 +241,7 @@ def delete_job(config_file_path):
         return error_message
     
 def docker_restart(container):
-    ssh = 'ssh jxlai@' + container.node.node_ip
+    ssh = 'ssh jxlai@' + container.node.internal_ip         # ljx_change
     print(container.svc_name)
     command_to_run = '{} docker restart $({} docker ps --format "{{{{.Names}}}}" | grep {})'.format(ssh, ssh, 'k8s_'+ container.job_name)
     print('run:', command_to_run)

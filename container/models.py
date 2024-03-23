@@ -39,6 +39,7 @@ class Container(models.Model):
 
     capabilities = models.JSONField(max_length=255, verbose_name='capabilities', null=True)
     shm = models.CharField(max_length=10, default='64M')
+    is_committing = models.BooleanField(default=False)
     # config_file_path = models.CharField(max_length=255, null=True)
 
     def __str__(self):

@@ -19,6 +19,7 @@ from image.models import Image
 from django.core.files.uploadedfile import SimpleUploadedFile
 from .serializers import ContainerSerializer, ContainerGetSerializer
 from .manage_container import delete_job, docker_restart, get_pod_status, create_job, get_pod_status_by_username, run_command
+from image.manage_image import commit_image
 
 
 class ContainerView(viewsets.GenericViewSet):
@@ -51,7 +52,7 @@ class ContainerView(viewsets.GenericViewSet):
 
         # 2. 创建job (VM or Task)
         if config['is_VM']:
-            config['backoffLimit'] = 1 
+            config['backoffLimit'] = 0 
             config['cmd'] = 'sleep ' + str(config['duration']) + ';'
             print("create VM")
         else:
@@ -67,6 +68,7 @@ class ContainerView(viewsets.GenericViewSet):
         config['svc_name'] = res['svc_name']
         config['port'] = res['port']
         config['status'] = res['status']
+        config['duration'] = config['duration']/3600    # 转换为小时
         with open(res['path'], 'rb') as file:
             file_content = file.read()
             uploaded_file = SimpleUploadedFile(
@@ -126,16 +128,21 @@ class ContainerView(viewsets.GenericViewSet):
             container_id = self.request.query_params.get('container_id')
             try:
                 container = Container.objects.get(container_id=container_id)
+                if container.user != request.user and not request.user.is_staff:
+                    return Response({'message': "error user"}, status=status.HTTP_403_FORBIDDEN)
                 print('delete', container.pod_name)
                 file_path = settings.POD_CONFIG + container.file.name
                 error_message = delete_job(file_path)
                 if error_message is not None:
                     return Response({'message': error_message}, status=status.HTTP_403_FORBIDDEN)
+                container_status_pre = container.status
                 container.status = get_pod_status(container.pod_name)
                 container.save()
+                # TODO 判断container是不是pending
                 # 更新GPU数
-                container.node.gpu_remain_num += container.num_gpu
-                container.node.save()
+                if container_status_pre != 'Pending':
+                    container.node.gpu_remain_num += container.num_gpu
+                    container.node.save()
                 return Response(status=status.HTTP_204_NO_CONTENT)
             except Exception as e:
                 # 捕获并处理保存失败的异常
@@ -172,14 +179,12 @@ class ContainerGetView(generics.GenericAPIView):
         print(username)
 
         # 获取当前用户的pod
-        queryset = self.filter_queryset(self.get_queryset().filter(Q(user=request.user)))
-        # # 获取具有最新日期的每个 pod_name 下的唯一记录的完整信息
-        # latest_pods = queryset.values('pod_name').annotate(published_date=Max('published_date'))
-        # latest_pods = queryset.filter(
-        #     pod_name__in=[item['pod_name'] for item in latest_pods],
-        #     published_date__in=[item['published_date'] for item in latest_pods]
-        # )
-        pod_status, nodes = get_pod_status_by_username(request.user.username)
+        if request.user.is_staff:
+            queryset = self.filter_queryset(self.get_queryset())
+            pod_status, nodes = get_pod_status_by_username(request.user.username, True)       #  # {pod_name:status} {pod_name:node}
+        else:
+            queryset = self.filter_queryset(self.get_queryset().filter(Q(user=request.user)))
+            pod_status, nodes = get_pod_status_by_username(request.user.username)       #  # {pod_name:status} {pod_name:node}
         print(pod_status,nodes)
         # 更新pod状态和所属节点
         for pod in queryset:
@@ -194,6 +199,8 @@ class ContainerGetView(generics.GenericAPIView):
                         node.save()
                 except Node.DoesNotExist:       # 容器为pending
                     pod.node = None
+                if pod.is_committing:                           # 正属于提交状态
+                    pod.status = 'Committing'
             else:
                 pod.status = 'Not exist or finished'
             pod.save()
@@ -217,7 +224,7 @@ class ContainerDockerRestartView(generics.GenericAPIView):
         container_id = self.request.query_params.get('container_id')
         try:
             container = Container.objects.get(container_id=container_id) 
-            if container.user.username != request.user.username:
+            if container.user != request.user and not request.user.is_staff:
                 return Response({'message': "error user"}, status=status.HTTP_403_FORBIDDEN)
             if docker_restart(container):
                 return Response(status=status.HTTP_200_OK)
@@ -228,7 +235,7 @@ class ContainerDockerRestartView(generics.GenericAPIView):
             print(error_message)
             return Response({'message':error_message}, status=status.HTTP_403_FORBIDDEN)
         
-# delete service
+# delete service and conmmit images
 class ContainerDeleteServiceView(generics.GenericAPIView):
     # 采用token验证
     # authentication_classes = [TokenAuthentication]
@@ -243,16 +250,30 @@ class ContainerDeleteServiceView(generics.GenericAPIView):
             image = Image.objects.get(name=":".join(image[:-1]), tag=image[-1])
             container = Container.objects.get(job_name=job_name, image=image)
             now = timezone.now()
-            print('create_time:', container.create_time, 'current time', now)
+            print(container.job_name,'create_time:', container.create_time, 'current time:', now)
             duration = now - container.create_time
-            print('duration:',duration.total_seconds())
-            if duration.total_seconds()+settings.TIME_WAIT_FOR_APPLY > container.duration:
+            print('  duration:',duration.total_seconds())
+            if duration.total_seconds()+settings.TIME_WAIT_FOR_APPLY+5 > container.duration:
                 try:
+                    # 标志处于提交状态
+                    container.is_committing = True
+                    container.save()
+                    # 保存容器
+                    ssh = 'ssh jxlai@' + container.node.internal_ip  # ljx_change
+                    flag, res = commit_image(ssh, container, settings.REGISTERY_PATH, auto=True)
+                    if flag:
+                        print("  commit successfully!")
+                    else:
+                        print("  commit fail!")
+                    # 删除svc
                     subprocess.run('kubectl delete svc {}'.format(container.svc_name), shell=True, check=True)
                     # 更新GPU数
                     container.node.gpu_remain_num += container.num_gpu
                     container.node.save()
-                    print('kubectl delete svc {} successful'.format(container.svc_name))
+                    # 解除提交状态
+                    container.is_committing = False
+                    container.save()
+                    print('  kubectl delete svc {} successful'.format(container.svc_name))
                 except subprocess.CalledProcessError as e:
                     error_message = 'Error executing kubectl delete svc:'+ str(e)
                     print(error_message)
