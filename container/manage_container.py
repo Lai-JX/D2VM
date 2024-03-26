@@ -84,7 +84,7 @@ def config_job(config):
 
     # container.spec.containers[0].args = [ base_cmd + ' echo -e "{}\\n{}\\n"|passwd;  service ssh restart; {} while true; do sleep 3600; done; {}'.format(config['password'], config['password'], config['cmd'], tmp) ]
     # container.spec.containers[0].args = [ base_cmd + ' echo -e "{}\\n{}\\n"|passwd;  service ssh restart; {} {}'.format(config['password'], config['password'], config['cmd'], tmp) ]
-    container.spec.containers[0].args = [ '/share/base_cmd.sh; echo -e "{}\\n{}\\n"|passwd;  service ssh restart; {} service ssh stop; service ssh disable; {}'.format(config['password'], config['password'], config['cmd'], tmp) ]
+    container.spec.containers[0].args = [ '/share/base_cmd.sh; echo -e "{}\\n{}\\n"|passwd;  service ssh restart; /etc/init.d/ssh restart; {} service ssh stop; service ssh disable; {}'.format(config['password'], config['password'], config['cmd'], tmp) ]
 
     # 挂载
     container.spec.containers[0].volumeMounts[0].mountPath = config['path']

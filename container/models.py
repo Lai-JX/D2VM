@@ -1,7 +1,8 @@
 from datetime import datetime
 from django.db import models
 
-from image.models import Image, Node
+from image.models import Image
+from node.models import Node
 from user.models import User
 
 class Container(models.Model):

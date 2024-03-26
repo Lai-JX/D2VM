@@ -46,7 +46,9 @@ INSTALLED_APPS = [
     'corsheaders',
     'container',
     'image',
-    'user'
+    'user',
+    'node',
+    'django_q',
 ]
 
 MIDDLEWARE = [
@@ -214,6 +216,35 @@ REGISTERY_PATH = '192.158.0.10:5010'
 EMAIL_HOST = "smtp.163.com"     # 服务器
 EMAIL_PORT = 25                 # 一般情况下都为25
 EMAIL_HOST_USER = "hitsz_haios@163.com"     # 账号
-EMAIL_HOST_PASSWORD = "******"          # 密码 (注意：这里的密码指的是授权码)
+EMAIL_HOST_PASSWORD = "*****"          # 密码 (注意：这里的密码指的是授权码)
 EMAIL_USE_TLS = False       # 一般都为False
 EMAIL_FROM = "hitsz_haios@163.com"      # 邮箱来自
+
+# redis缓存
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }   
+    }   
+}
+
+Q_CLUSTER = {
+    'name': 'project_name',
+    'workers': 4,
+    'recycle': 500,
+    'timeout': 7200,        # 超时时间两小时
+    'retry': 7201,
+    'compress': True,
+    'cpu_affinity': 1,
+    'save_limit': 250,
+    'queue_limit': 500,
+    'label': 'Django Q',
+    'redis': {
+        'host': '127.0.0.1',
+        'port': 6379,
+        'db': 0,
+    }
+}

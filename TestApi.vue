@@ -1,7 +1,7 @@
 <template>
   <h1>USER</h1>
   <el-form :inline="true" :model="registeryData" size="small">
-    <el-form-item label="用户注册：">
+    <el-form-item label="用户注册：" style="font-weight: bold;">
       <el-input
         class="input"
         v-model="registeryData.username"
@@ -30,8 +30,62 @@
       <el-button type="primary" @click="onRegister">post 注册</el-button>
     </el-form-item>
   </el-form>
+
+
+  <el-form :inline="true" :model="changePwdData" size="small">
+    <el-form-item label="修改密码" style="font-weight: bold;">
+      <el-input
+        class="input"
+        v-model="changePwdData.username"
+        placeholder="用户名"
+      ></el-input>
+      <el-input
+        class="input"
+        v-model="changePwdData.old_password"
+        placeholder="old password"
+      ></el-input>
+      <el-input
+        class="input"
+        v-model="changePwdData.new_password"
+        placeholder="new password"
+      ></el-input>
+    </el-form-item>
+    <el-form-item>
+      <el-button type="primary" @click="onChangePwd">修改密码</el-button>
+    </el-form-item>
+  </el-form>
+
+  <el-form :inline="true" :model="resetPwdData" size="small">
+    <el-form-item label="重置密码：" style="font-weight: bold;">
+      <el-input
+        class="input"
+        v-model="resetPwdData.username"
+        placeholder="用户名"
+      ></el-input>
+      <el-input
+        class="input"
+        v-model="resetPwdData.email"
+        placeholder="email"
+      ></el-input>
+      <el-button type="primary" @click="onResetGetCode">获取验证码</el-button>
+      <el-input
+        class="input"
+        v-model="resetPwdData.code"
+        placeholder="验证码"
+      ></el-input>
+      <el-input
+        class="input"
+        v-model="resetPwdData.password"
+        placeholder="password"
+      ></el-input>
+    </el-form-item>
+    <el-form-item>
+      <el-button type="primary" @click="onResetPwd">重置密码</el-button>
+    </el-form-item>
+  </el-form>
+
   <el-form :inline="true" :model="loginData" size="small">
-    <el-form-item label="用户信息">
+    <el-form-item label="登录信息" style="font-weight: bold;">
       <el-input
         class="input"
         v-model="loginData.username"
@@ -50,7 +104,7 @@
       <el-button type="primary" @click="onLogout">登出</el-button>
     </el-form-item>
   </el-form>
-
+  
   <h1>CONTAINER</h1>
   <div>
     <form @submit.prevent="onCreateContainer" class="form">
@@ -202,7 +256,7 @@
       <input v-model="imageData.name" type="text" id="name" required>
 
       <label for="tag">Tag:</label>
-      <input v-model="imageData.tag" type="text" id="tag" required>
+      <input v-model="imageData.tag" type="text" id="tag">
 
       <label for="note">note:</label>
       <input v-model="imageData.note" type="text" id="note"  >
@@ -281,7 +335,33 @@
   <!-- <div>
     <button @click="onSyncImage">同步私有镜像库中的镜像数据到数据库（debug用）</button>
   </div> -->
-
+  <h1>测试</h1>
+  <el-form :inline="true" :model="registerDataPre" size="small">
+    <el-form-item label="用户信息">
+      <el-input
+        class="input"
+        v-model="registerDataPre.username"
+        placeholder="用户名"
+      ></el-input>
+      <el-input
+        class="input"
+        v-model="registerDataPre.password"
+        placeholder="password"
+      ></el-input>
+      <el-input
+        class="input"
+        v-model="registerDataPre.email"
+        placeholder="email"
+      ></el-input>
+    </el-form-item>
+    <el-form-item>
+      <!-- <el-button type="primary" @click="onSubmitGet">get 查询所有</el-button> -->
+      <!-- <el-button type="primary" @click="onLogin">post 登录</el-button> -->
+      <el-button type="primary" @click="onRegisterPre">post 注册</el-button>
+      <!-- <el-button type="primary" @click="onLogout">登出</el-button> -->
+    </el-form-item>
+  </el-form>
+  <el-button type="primary" @click="onAsync">异步</el-button>
 </template>
 
 <script>
@@ -304,6 +384,22 @@ export default {
         username: "",
         email: "",
         code: "",
+        password: "",
+      },
+      changePwdData: {
+        username: "",
+        old_password: "",
+        new_password: "",
+      },
+      resetPwdData: {
+        username: "",
+        email: "",
+        code: "",
+        password: "",
+      },
+      registerDataPre: {
+        username: "",
+        email: "",
         password: "",
       },
       containerData: {
@@ -392,10 +488,83 @@ export default {
       axios.post("http://10.249.40.11:32325/user/register/", this.registeryData)
       .then((res) => {
          console.log('success')
-         console.log(res.data); //在console中看到数据
+         console.log(res); //在console中看到数据
         })
         .catch((res) => {
-          alert("wrong",res.data);
+          console.log(res); //在console中看到数据
+          if (res.response.status==400) {
+            alert("wrong:"+JSON.stringify(res.response.data));
+          }
+        });
+    },
+
+    onChangePwd() {
+      console.log("onChangePwd!");
+      console.log("data",this.changePwdData)
+      axios.patch("http://10.249.40.11:32325/user/changePwd/", this.changePwdData, {
+        headers: {
+          Authorization: `Token ${globalToken}`,
+        },
+      })
+      .then((res) => {
+         console.log('success')
+         console.log(res); //在console中看到数据
+        })
+        .catch((res) => {
+          console.log(res); //在console中看到数据
+        });
+    },
+
+    onResetGetCode() {
+      console.log("onResetGetCode!");
+
+      var getCodeData = {getCodeData:'', email:''}
+      getCodeData.username=this.resetPwdData.username
+      getCodeData.email=this.resetPwdData.email
+
+      axios.post("http://10.249.40.11:32325/user/reset/sendCode/", getCodeData)
+      .then((res) => {
+         console.log('success')
+         console.log(res); //在console中看到数据
+        })
+        .catch((res) => {
+          console.log(res)
+          if (res.response.status==400) {
+            alert("wrong:"+JSON.stringify(res.response.data));
+          }
+            
+        });
+    },
+    
+    onResetPwd() {
+      console.log("onResetPwd!");
+      console.log("data",this.resetPwdData)
+      axios.post("http://10.249.40.11:32325/user/reset/", this.resetPwdData)
+      .then((res) => {
+         console.log('success')
+         console.log(res); //在console中看到数据
+        })
+        .catch((res) => {
+          console.log(res); //在console中看到数据
+          if (res.response.status==400) {
+            alert("wrong:"+JSON.stringify(res.response.data));
+          }
+        });
+    },
+
+    onRegisterPre() {
+      console.log("onRegisterPre!");
+      console.log("data",this.registerDataPre)
+      axios.post("http://10.249.40.11:32325/user/register_test/", this.registerDataPre)
+      .then((res) => {
+         console.log('success')
+         console.log(res); //在console中看到数据
+        })
+        .catch((res) => {
+          console.log(res); //在console中看到数据
+          if (res.response.status==400) {
+            alert("wrong:"+JSON.stringify(res.response.data));
+          }
         });
     },
 
@@ -621,6 +790,18 @@ export default {
             is_public: this.chmod_is_public,      // 0:false; 1:true
           },
         })
+        .then(response => {
+          console.log('request successful', response.data);
+          // 处理响应数据
+        })
+        .catch(error => {
+          console.error('Error making request', error);
+          // 处理错误
+        });
+    },
+
+    onAsync() {
+      axios.get('http://10.249.40.11:32325/image/test/', {})
         .then(response => {
           console.log('request successful', response.data);
           // 处理响应数据

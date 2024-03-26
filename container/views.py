@@ -1,6 +1,8 @@
+
 import copy
 import subprocess
 import uuid
+
 from django.shortcuts import render
 
 # Create your views here.
@@ -10,10 +12,12 @@ from rest_framework.response import Response
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
+
 from django.utils import timezone
 from django.conf import settings
 from django.db.models import Q, Max, OuterRef, Subquery
-from .models import Container, Node
+from .models import Container
+from node.models import Node
 from user.models import User
 from image.models import Image
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -255,6 +259,8 @@ class ContainerDeleteServiceView(generics.GenericAPIView):
             print('  duration:',duration.total_seconds())
             if duration.total_seconds()+settings.TIME_WAIT_FOR_APPLY+5 > container.duration:
                 try:
+                    # 删除svc
+                    subprocess.run('kubectl delete svc {}'.format(container.svc_name), shell=True, check=True)
                     # 标志处于提交状态
                     container.is_committing = True
                     container.save()
@@ -265,8 +271,7 @@ class ContainerDeleteServiceView(generics.GenericAPIView):
                         print("  commit successfully!")
                     else:
                         print("  commit fail!")
-                    # 删除svc
-                    subprocess.run('kubectl delete svc {}'.format(container.svc_name), shell=True, check=True)
+                    
                     # 更新GPU数
                     container.node.gpu_remain_num += container.num_gpu
                     container.node.save()

@@ -1,3 +1,8 @@
+
+
+import asyncio
+import os
+import time
 from rest_framework import viewsets
 from rest_framework.authtoken.models import Token
 from rest_framework import generics, status
@@ -97,7 +102,7 @@ class ImageViewSet(viewsets.GenericViewSet):
 
         # 获取用户名
         username = request.user.username
-        print(username, request.user.is_staff)
+        print(username, 'is_staff:', request.user.is_staff)
         # queryset = self.filter_queryset(self.get_queryset().filter(source=username))
         if request.user.is_staff:               # admin 用户
             queryset = self.get_queryset()
@@ -121,12 +126,18 @@ class ImageViewSet(viewsets.GenericViewSet):
         if image.user != request.user and not request.user.is_staff:
             return Response({'message': "error user"}, status=status.HTTP_403_FORBIDDEN)
         if image.node == None:          # 删除过本地后，image.node就是None
-            ssh = 'ssh jxlai@' + settings.DOCKER_PULL_PUSH_IP
+            if settings.DOCKER_PULL_PUSH_IP == get_host_ip():
+                ssh = ''
+            else:
+                ssh = 'ssh jxlai@' + settings.DOCKER_PULL_PUSH_IP
         else:
             ssh = 'ssh jxlai@' + image.node.internal_ip  # ljx_change
         if delete_opt == 2:                 # delete all
             flag1, res1 = delete_registery_image(settings.REGISTERY_PATH, image)
-            flag2, res2 = delete_image(ssh, settings.REGISTERY_PATH, image)
+            if image.node is not None:
+                flag2, res2 = delete_image(ssh, settings.REGISTERY_PATH, image)
+            else:
+                flag2 = True
             if flag1 and flag2:
                 # image.delete()
                 return Response({'message':res1+'\n'+res2}, status=status.HTTP_204_NO_CONTENT)
@@ -267,3 +278,56 @@ class ImageSyncView(generics.GenericAPIView):
     def patch(self, request, *args, **kwargs):
         sync_image_to_database(settings.REGISTERY_PATH)
         print('patch')
+
+
+
+
+from django_q.tasks import async_task, Task
+# # 异步任务
+def http_call_async(arg:int):
+    print('http_call_async', arg)
+    for num in range(arg):
+        print(num)
+        # time.sleep(1)
+    print('http_call_async2', arg)
+    os.system('touch test.txt')
+
+import math
+
+def demo_task(number: int):
+    return math.sqrt(math.factorial(number))
+    # async with httpx.AsyncClient() as client:
+    #     r = await client.get("https://httpbin.org/")
+    #     print(r)
+def task_finish(task: Task):
+    print(f'任务 {task.name}（ID：{task.id}）完成！')
+
+
+
+from django.http import HttpResponse
+
+# # 异步视图 - 调用异步任务
+class ImageAsyncView(generics.GenericAPIView):
+    def get(self, request, *args, **kwargs):
+
+        # async def http_call_async():
+        #     for i in range(1,6):
+        #         time.sleep(1)
+        #         print(i)
+            # time.sleep(5)
+            # os.system("touch test.txt")
+        # asyncio.run(http_call_async)
+        # loop = asyncio.get_event_loop()
+        # loop.create_task(http_call_async())
+
+        task_id = async_task(
+            http_call_async, 6,
+            task_name='http_call_async',
+            hook=task_finish,
+        )
+        # task
+        # http_call_async()
+        return HttpResponse({'message':'Non-blocking HTTP request'}, status=200)
+        
+
+
