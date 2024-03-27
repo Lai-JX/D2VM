@@ -26,4 +26,5 @@ class ContainerGetSerializer(serializers.ModelSerializer):
     def get_image_name(self, obj):
         return obj.image.name + ':' + obj.image.tag if obj.image else None
     def get_node_ip(self, obj):
+        # print(self.fields['container_id'], 'get_node_ip', obj.node)
         return obj.node.node_ip  if obj.node else None

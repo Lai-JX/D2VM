@@ -332,6 +332,22 @@
   <button @click="onImageChmod">change</button>
 </div>
 
+<h1>NODE</h1>
+<el-button type="primary" @click="onGetAllNode">get节点资源信息</el-button>
+  <ul>
+      <!-- 使用 v-for 遍历数组中的每个对象 -->
+      <li v-for="(item, index) in node_results" :key="index">
+        <!-- 显示对象中的属性 -->
+        <p>node_id: {{ item.node_id }}</p>
+        <p>节点名: {{ item.node_name }}</p>
+        <p>gpu类型: {{ item.gputype }}</p>
+        <p>gpu数量: {{ item.gpu_num }}</p>
+        <p>剩余gpu数量: {{ item.gpu_remain_num }}</p>
+      </li>
+  </ul>
+
+
+
   <!-- <div>
     <button @click="onSyncImage">同步私有镜像库中的镜像数据到数据库（debug用）</button>
   </div> -->
@@ -433,6 +449,7 @@ export default {
       },
       container_results: "",
       image_results: "",
+      node_results: "",
       delete_container_id: "",
       save_container_id: "",
       push_image_id: "",
@@ -799,6 +816,24 @@ export default {
           // 处理错误
         });
     },
+
+    onGetAllNode() {
+      console.log("onGetAllNode!");
+      axios.get('http://10.249.40.11:32325/node/', {
+        headers: {
+          Authorization: `Token ${globalToken}`,
+        },
+      })
+      .then((res) => {
+         console.log('success')
+         console.log(res.data); //在console中看到数据
+         this.node_results = res.data
+        })
+        .catch((res) => {
+          alert("wrong",res.data);
+        });
+    },
+
 
     onAsync() {
       axios.get('http://10.249.40.11:32325/image/test/', {})

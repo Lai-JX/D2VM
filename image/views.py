@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.settings import api_settings
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
+from django_q.tasks import async_task, Task
 from django.db.models import Q
 from .serializers import ImageSerializer
 from .models import Image
@@ -161,6 +162,15 @@ class ImageViewSet(viewsets.GenericViewSet):
             return Response({'message':'error parameter'}, status=status.HTTP_403_FORBIDDEN)
             
 
+def imageSave(container: Container):
+    ssh = 'ssh jxlai@' + container.node.internal_ip  # ljx_change
+    flag, res = commit_image(ssh, container, settings.REGISTERY_PATH)
+    # 解除标志
+    container.is_committing = False
+    container.save()
+
+def imageSave_finish(task: Task):
+    print(f'任务 {task.name}（ID：{task.id}）完成！')
 
 # 用于将容器保存为镜像
 class ImageSaveView(generics.GenericAPIView):
@@ -185,14 +195,25 @@ class ImageSaveView(generics.GenericAPIView):
             container = Container.objects.get(user=user, image=image)
         if container.user != request.user and not request.user.is_staff:
             return Response({'message': "error user"}, status=status.HTTP_403_FORBIDDEN)
+        if container.is_committing:
+            return Response({'message': "提交中，请耐心等待"}, status=status.HTTP_403_FORBIDDEN)
         # 保存容器
         # ssh到别的机器
-        ssh = 'ssh jxlai@' + container.node.internal_ip  # ljx_change
-        flag, res = commit_image(ssh, container, settings.REGISTERY_PATH)
-        if flag:
-            return Response({'message':res}, status=status.HTTP_200_OK)
-        else:
-            return Response({'message':res}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # ssh = 'ssh jxlai@' + container.node.internal_ip  # ljx_change
+        # flag, res = commit_image(ssh, container, settings.REGISTERY_PATH)
+        # if flag:
+        #     return Response({'message':res}, status=status.HTTP_200_OK)
+        # else:
+        #     return Response({'message':res}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # 标志处于提交状态
+        container.is_committing = True
+        container.save()
+        task_id = async_task(
+            imageSave, container,
+            task_name='imageSave-'+container.pod_name,
+            hook=imageSave_finish,
+        )
+        return Response({'message':'提交中，请耐心等待'}, status=status.HTTP_200_OK)
 
     
 # 用于将镜像上传到仓库

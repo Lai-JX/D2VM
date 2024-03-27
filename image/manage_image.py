@@ -77,10 +77,17 @@ def run_command(command):
         print(f"Command execution failed with error: {e}")
         return None
 
-def add_prefix(text, prefix):
-    prefix = prefix + '-'
-    if not text.startswith(prefix):
-        text = prefix + text
+def add_prefix(text, prefix):   # zengzekai-0dc38-lyli-256-1310-v1、 zengzekai-fsf34
+    text1 = text.split("-")
+    prefix1 = prefix.split("-")
+    if text1[0] == prefix1[0]:
+        prefix = "-".join(prefix1[0:2])
+        text = "-".join(text1[2:])
+        text = "-".join([prefix, text])
+    else: 
+        prefix = prefix + '-'
+        if not text.startswith(prefix):
+            text = prefix + text
     return text
 
 def ends_with_v_plus_number(s):

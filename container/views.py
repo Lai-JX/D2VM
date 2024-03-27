@@ -57,7 +57,7 @@ class ContainerView(viewsets.GenericViewSet):
         # 2. 创建job (VM or Task)
         if config['is_VM']:
             config['backoffLimit'] = 0 
-            config['cmd'] = 'sleep ' + str(config['duration']) + ';'
+            config['cmd'] = 'sleep ' + str(config['duration']) + ';'        # 暂时先不考虑cmd字段，启动脚本不会运行cmd，而是根据duration来sleep
             print("create VM")
         else:
             config['backoffLimit'] = 3
